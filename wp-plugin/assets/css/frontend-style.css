@@ -1,0 +1,300 @@
+/* FILE: wp-plugin/assets/css/frontend-style.css */
+/* MODULE: Frontend Styling für Donation Form & Projects */
+
+:root {
+    --trueangels-primary: #2d6a4f;
+    --trueangels-primary-dark: #1b4332;
+    --trueangels-primary-light: #52b788;
+    --trueangels-gray-50: #f8f9fa;
+    --trueangels-gray-100: #f1f3f5;
+    --trueangels-gray-200: #e9ecef;
+    --trueangels-gray-300: #dee2e6;
+    --trueangels-gray-600: #6c757d;
+    --trueangels-gray-800: #343a40;
+    --trueangels-success: #51cf66;
+    --trueangels-error: #ff6b6b;
+    --trueangels-border-radius: 12px;
+    --trueangels-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --trueangels-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* Donation Form Styles */
+.trueangels-donation-wrapper {
+    max-width: 600px;
+    margin: 0 auto;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.trueangels-donation-form {
+    background: white;
+    border-radius: var(--trueangels-border-radius);
+    padding: 2rem;
+    box-shadow: var(--trueangels-shadow);
+}
+
+.trueangels-donation-form[data-theme="dark"] {
+    background: #1a1a2e;
+    color: white;
+}
+
+.trueangels-amount-section {
+    margin-bottom: 1.5rem;
+}
+
+.trueangels-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: var(--trueangels-gray-800);
+}
+
+.trueangels-amount-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.trueangels-amount-btn {
+    padding: 0.75rem 1rem;
+    border: 2px solid var(--trueangels-gray-200);
+    background: white;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.trueangels-amount-btn:hover {
+    border-color: var(--trueangels-primary);
+    background: var(--trueangels-gray-50);
+}
+
+.trueangels-amount-btn.active {
+    background: var(--trueangels-primary);
+    border-color: var(--trueangels-primary);
+    color: white;
+}
+
+.trueangels-custom-amount {
+    grid-column: span 2;
+}
+
+.trueangels-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid var(--trueangels-gray-200);
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+}
+
+.trueangels-input:focus {
+    outline: none;
+    border-color: var(--trueangels-primary);
+}
+
+.trueangels-donor-section {
+    margin-bottom: 1.5rem;
+}
+
+.trueangels-field {
+    margin-bottom: 1rem;
+}
+
+.trueangels-payment-section {
+    margin-bottom: 1.5rem;
+}
+
+.trueangels-payment-methods {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.trueangels-radio {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    border: 2px solid var(--trueangels-gray-200);
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.trueangels-radio:hover {
+    border-color: var(--trueangels-primary);
+}
+
+.trueangels-radio input {
+    margin: 0;
+}
+
+.trueangels-submit-btn {
+    width: 100%;
+    padding: 1rem;
+    background: var(--trueangels-primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.trueangels-submit-btn:hover:not(:disabled) {
+    background: var(--trueangels-primary-dark);
+    transform: translateY(-2px);
+    box-shadow: var(--trueangels-shadow);
+}
+
+.trueangels-submit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.trueangels-success-message {
+    text-align: center;
+    padding: 2rem;
+    background: var(--trueangels-success);
+    color: white;
+    border-radius: var(--trueangels-border-radius);
+}
+
+.trueangels-error {
+    color: var(--trueangels-error);
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: #fff5f5;
+    border-radius: 8px;
+}
+
+/* Projects Grid Styles */
+.trueangels-projects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+}
+
+.trueangels-projects-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.trueangels-project-card {
+    background: white;
+    border-radius: var(--trueangels-border-radius);
+    padding: 1.5rem;
+    box-shadow: var(--trueangels-shadow);
+    transition: all 0.2s;
+}
+
+.trueangels-project-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--trueangels-shadow-lg);
+}
+
+.trueangels-project-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.trueangels-project-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: var(--trueangels-gray-800);
+}
+
+.trueangels-project-amount {
+    font-weight: 700;
+    color: var(--trueangels-primary);
+}
+
+.trueangels-project-description {
+    color: var(--trueangels-gray-600);
+    margin-bottom: 1rem;
+    line-height: 1.5;
+}
+
+.trueangels-project-progress {
+    margin: 1rem 0;
+}
+
+.trueangels-progress-bar {
+    height: 8px;
+    background: var(--trueangels-gray-200);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.trueangels-progress-fill {
+    height: 100%;
+    background: var(--trueangels-primary);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.trueangels-progress-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--trueangels-gray-600);
+}
+
+.trueangels-donate-btn {
+    width: 100%;
+    padding: 0.75rem;
+    background: white;
+    border: 2px solid var(--trueangels-primary);
+    color: var(--trueangels-primary);
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.trueangels-donate-btn:hover {
+    background: var(--trueangels-primary);
+    color: white;
+}
+
+/* Loading Spinner */
+.trueangels-loading {
+    text-align: center;
+    padding: 2rem;
+}
+
+.trueangels-spinner {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 1rem;
+    border: 3px solid var(--trueangels-gray-200);
+    border-top-color: var(--trueangels-primary);
+    border-radius: 50%;
+    animation: trueangels-spin 1s linear infinite;
+}
+
+@keyframes trueangels-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .trueangels-donation-form {
+        padding: 1.5rem;
+    }
+    
+    .trueangels-amount-buttons {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .trueangels-projects-grid {
+        grid-template-columns: 1fr;
+    }
+}

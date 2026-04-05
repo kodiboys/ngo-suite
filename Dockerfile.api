@@ -1,0 +1,69 @@
+# FILE: Dockerfile.api
+# MODULE: Multi-Stage Docker Build für FastAPI Backend
+# Optimiert für Produktion mit Slim Image, Security Scanning, Healthchecks
+
+# ==================== STAGE 1: Builder ====================
+FROM python:3.11-slim as builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libpq-dev \
+    libffi-dev \
+    libssl-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Poetry
+RUN pip install --no-cache-dir poetry==1.7.1
+
+WORKDIR /app
+
+# Copy dependency files
+COPY pyproject.toml poetry.lock* ./
+
+# Install dependencies (ohne dev dependencies)
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-dev --no-interaction --no-ansi
+
+# ==================== STAGE 2: Production ====================
+FROM python:3.11-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -r trueangels && useradd -r -g trueangels trueangels
+
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy application code
+COPY src/ ./src/
+COPY alembic/ ./alembic/
+COPY alembic.ini .
+
+# Set environment variables
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Security: Run as non-root user
+USER trueangels
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Expose port
+EXPOSE 8000
+
+# Run with uvicorn
+CMD ["uvicorn", "src.adapters.api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

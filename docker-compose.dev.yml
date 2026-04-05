@@ -1,0 +1,82 @@
+# FILE: docker-compose.dev.yml
+# MODULE: Development Docker Compose mit Hot-Reload und Debugging
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: trueangels_dev
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: uvicorn src.adapters.api:app --host 0.0.0.0 --port 8000 --reload --log-level debug
+    environment:
+      DATABASE_URL: postgresql://dev:dev_password@postgres:5432/trueangels_dev
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: development
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+      - ./alembic:/app/alembic
+    depends_on:
+      - postgres
+      - redis
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    command: celery -A src.core.events.event_bus worker --loglevel=debug --concurrency=2
+    environment:
+      DATABASE_URL: postgresql://dev:dev_password@postgres:5432/trueangels_dev
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      - postgres
+      - redis
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    command: streamlit run streamlit_app.py --server.port=8501 --server.address=0.0.0.0 --server.runOnSave true
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./streamlit_app.py:/app/streamlit_app.py
+      - ./public:/app/public
+    depends_on:
+      - api
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@trueangels.de
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_dev_data:

@@ -1,0 +1,26 @@
+# FILE: .streamlit/config.toml
+# MODULE: Streamlit Configuration für Theme und Server
+
+[theme]
+primaryColor = "rgb(45, 106, 79)"
+backgroundColor = "rgb(255, 255, 255)"
+secondaryBackgroundColor = "rgb(240, 242, 246)"
+textColor = "rgb(38, 39, 48)"
+font = "sans serif"
+
+[server]
+port = 8501
+address = "0.0.0.0"
+enableCORS = false
+enableXsrfProtection = true
+maxUploadSize = 200
+
+[browser]
+gatherUsageStats = false
+serverAddress = "localhost"
+
+[runner]
+magicEnabled = false
+
+[logger]
+level = "info"

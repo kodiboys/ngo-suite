@@ -1,0 +1,35 @@
+# FILE: Dockerfile.celery
+# MODULE: Celery Worker für Background Tasks
+
+FROM python:3.11-slim
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -r trueangels && useradd -r -g trueangels trueangels
+
+WORKDIR /app
+
+# Copy requirements
+COPY pyproject.toml poetry.lock* ./
+
+# Install Poetry and dependencies
+RUN pip install --no-cache-dir poetry==1.7.1 \
+    && poetry config virtualenvs.create false \
+    && poetry install --no-dev --no-interaction --no-ansi
+
+# Copy application
+COPY src/ ./src/
+
+USER trueangels
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD celery -A src.core.events.event_bus status
+
+# Run celery worker
+CMD ["celery", "-A", "src.core.events.event_bus", "worker", "--loglevel=info", "--concurrency=4"]

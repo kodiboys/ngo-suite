@@ -1,0 +1,12 @@
+// .vscode/settings.json
+{
+    "[python]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": true,
+            "source.organizeImports.ruff": true
+        }
+    },
+    "ruff.lint.args": ["--select", "I,W,E,F"], 
+
+}

@@ -1,0 +1,265 @@
+# FILE: .github/workflows/ci-cd.yml
+# MODULE: GitHub Actions CI/CD Pipeline
+# Lint, Test, Build, Security Scan, Deploy
+
+name: TrueAngels CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * *'  # Daily security scan
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # ==================== Linting ====================
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install Poetry
+        run: pip install poetry==1.7.1
+      
+      - name: Install dependencies
+        run: poetry install --no-interaction
+      
+      - name: Run Black (Formatting)
+        run: poetry run black --check --diff src/ tests/
+      
+      - name: Run Ruff (Linting)
+        run: poetry run ruff check src/ tests/
+      
+      - name: Run MyPy (Type Checking)
+        run: poetry run mypy src/
+
+  # ==================== Tests ====================
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install Poetry
+        run: pip install poetry==1.7.1
+      
+      - name: Install dependencies
+        run: poetry install --no-interaction
+      
+      - name: Run Alembic Migrations
+        run: |
+          poetry run alembic upgrade head
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+      
+      - name: Run Pytest with Coverage
+        run: |
+          poetry run pytest tests/ -v --cov=src --cov-report=xml --cov-report=html
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          ENVIRONMENT: test
+      
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+      
+      - name: Run Security Linter (Bandit)
+        run: poetry run bandit -r src/ -f json -o bandit-report.json
+      
+      - name: Upload Security Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-report
+          path: bandit-report.json
+
+  # ==================== Security Scan ====================
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Run OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'TrueAngels'
+          path: '.'
+          format: 'HTML'
+          out: 'reports'
+      
+      - name: Upload Dependency Check Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-check-report
+          path: reports
+
+  # ==================== Build & Push ====================
+  build:
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: Build and push API image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile.api
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build and push Celery image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile.celery
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-celery:latest
+      
+      - name: Build and push Streamlit image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile.streamlit
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-streamlit:latest
+
+  # ==================== Deploy to Production ====================
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up SSH key
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      
+      - name: Deploy to production server
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+            cd /opt/trueangels
+            docker-compose pull
+            docker-compose up -d --force-recreate --no-deps api celery_worker streamlit
+            docker system prune -f
+            docker-compose exec api alembic upgrade head
+          EOF
+      
+      - name: Send deployment notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_TITLE: 'Deployment Successful'
+          SLACK_MESSAGE: 'TrueAngels v2.0 deployed to production'
+          SLACK_COLOR: '#2d6a4f'
+
+  # ==================== Load Testing ====================
+  load-test:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install Locust
+        run: pip install locust
+      
+      - name: Run Load Test
+        run: |
+          locust -f tests/load_test.py --headless -u 100 -r 10 --run-time 5m \
+            --host https://api.trueangels.de
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+      
+      - name: Upload Load Test Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: load-test-results
+          path: locust_stats.csv
