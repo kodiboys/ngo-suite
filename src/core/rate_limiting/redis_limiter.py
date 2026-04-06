@@ -26,11 +26,7 @@ class SlidingWindowRateLimiter(RateLimiterInterface):
     def __init__(self, redis_client: redis.Redis):
         self.redis = redis_client
 
-    async def is_allowed(
-        self,
-        key: str,
-        config: RateLimitConfig
-    ) -> RateLimitResult:
+    async def is_allowed(self, key: str, config: RateLimitConfig) -> RateLimitResult:
         """Prüft mit Sliding Window Algorithmus"""
 
         now = time.time()
@@ -80,13 +76,7 @@ class SlidingWindowRateLimiter(RateLimiterInterface):
         try:
             # Führe Lua Script aus
             result = await self.redis.eval(
-                lua_script,
-                1,
-                redis_key,
-                now,
-                window_start,
-                config.limit,
-                config.window_seconds
+                lua_script, 1, redis_key, now, window_start, config.limit, config.window_seconds
             )
 
             allowed, current_count, reset_at = result
@@ -96,7 +86,7 @@ class SlidingWindowRateLimiter(RateLimiterInterface):
                 remaining=config.limit - current_count,
                 reset_at=datetime.fromtimestamp(reset_at),
                 limit=config.limit,
-                current_count=current_count
+                current_count=current_count,
             )
 
         except Exception as e:
@@ -106,7 +96,7 @@ class SlidingWindowRateLimiter(RateLimiterInterface):
                 allowed=True,
                 remaining=config.limit,
                 reset_at=datetime.utcnow() + timedelta(seconds=config.window_seconds),
-                limit=config.limit
+                limit=config.limit,
             )
 
     async def get_current_count(self, key: str, config: RateLimitConfig) -> int:
@@ -134,11 +124,7 @@ class TokenBucketRateLimiter(RateLimiterInterface):
     def __init__(self, redis_client: redis.Redis):
         self.redis = redis_client
 
-    async def is_allowed(
-        self,
-        key: str,
-        config: RateLimitConfig
-    ) -> RateLimitResult:
+    async def is_allowed(self, key: str, config: RateLimitConfig) -> RateLimitResult:
         """Prüft mit Token Bucket Algorithmus"""
 
         redis_key = f"ratelimit:tokenbucket:{config.scope.value}:{key}"
@@ -152,16 +138,13 @@ class TokenBucketRateLimiter(RateLimiterInterface):
             tokens = config.initial_tokens or config.limit
             last_refill = now
         else:
-            tokens = float(bucket_data.get(b'tokens', config.limit))
-            last_refill = float(bucket_data.get(b'last_refill', now))
+            tokens = float(bucket_data.get(b"tokens", config.limit))
+            last_refill = float(bucket_data.get(b"last_refill", now))
 
         # Refill Tokens basierend auf vergangener Zeit
         time_passed = now - last_refill
         refill_rate = config.refill_rate or (config.limit / config.window_seconds)
-        new_tokens = min(
-            config.limit,
-            tokens + (time_passed * refill_rate)
-        )
+        new_tokens = min(config.limit, tokens + (time_passed * refill_rate))
 
         # Prüfe ob Token verfügbar
         if new_tokens >= 1:
@@ -170,10 +153,7 @@ class TokenBucketRateLimiter(RateLimiterInterface):
             remaining = int(new_tokens)
 
             # Speichere neuen Zustand
-            await self.redis.hset(redis_key, mapping={
-                'tokens': new_tokens,
-                'last_refill': now
-            })
+            await self.redis.hset(redis_key, mapping={"tokens": new_tokens, "last_refill": now})
             await self.redis.expire(redis_key, config.window_seconds + 60)
 
             # Berechne Reset Zeit (wann nächster Token verfügbar)
@@ -185,11 +165,13 @@ class TokenBucketRateLimiter(RateLimiterInterface):
                 remaining=remaining,
                 reset_at=reset_at,
                 limit=config.limit,
-                current_count=config.limit - remaining
+                current_count=config.limit - remaining,
             )
         else:
             # Keine Token verfügbar
-            time_to_next_token = (1 - new_tokens) / refill_rate if refill_rate > 0 else config.window_seconds
+            time_to_next_token = (
+                (1 - new_tokens) / refill_rate if refill_rate > 0 else config.window_seconds
+            )
             reset_at = datetime.utcnow() + timedelta(seconds=time_to_next_token)
 
             return RateLimitResult(
@@ -198,13 +180,13 @@ class TokenBucketRateLimiter(RateLimiterInterface):
                 reset_at=reset_at,
                 retry_after=int(time_to_next_token) + 1,
                 limit=config.limit,
-                current_count=config.limit
+                current_count=config.limit,
             )
 
     async def get_current_count(self, key: str, config: RateLimitConfig) -> int:
         """Holt aktuellen Token Stand"""
         redis_key = f"ratelimit:tokenbucket:{config.scope.value}:{key}"
-        tokens = await self.redis.hget(redis_key, 'tokens')
+        tokens = await self.redis.hget(redis_key, "tokens")
         if tokens:
             return config.limit - int(float(tokens))
         return 0
@@ -224,11 +206,7 @@ class LeakyBucketRateLimiter(RateLimiterInterface):
     def __init__(self, redis_client: redis.Redis):
         self.redis = redis_client
 
-    async def is_allowed(
-        self,
-        key: str,
-        config: RateLimitConfig
-    ) -> RateLimitResult:
+    async def is_allowed(self, key: str, config: RateLimitConfig) -> RateLimitResult:
         """Prüft mit Leaky Bucket Algorithmus"""
 
         redis_key = f"ratelimit:leaky:{config.scope.value}:{key}"
@@ -277,14 +255,7 @@ class LeakyBucketRateLimiter(RateLimiterInterface):
         """
 
         try:
-            result = await self.redis.eval(
-                lua_script,
-                1,
-                redis_key,
-                now,
-                config.limit,
-                leak_rate
-            )
+            result = await self.redis.eval(lua_script, 1, redis_key, now, config.limit, leak_rate)
 
             allowed, remaining, reset_at = result
 
@@ -294,7 +265,7 @@ class LeakyBucketRateLimiter(RateLimiterInterface):
                 reset_at=datetime.fromtimestamp(reset_at),
                 retry_after=int(reset_at - now) if not allowed else None,
                 limit=config.limit,
-                current_count=config.limit - int(remaining)
+                current_count=config.limit - int(remaining),
             )
 
         except Exception as e:
@@ -303,7 +274,7 @@ class LeakyBucketRateLimiter(RateLimiterInterface):
                 allowed=True,
                 remaining=config.limit,
                 reset_at=datetime.utcnow() + timedelta(seconds=config.window_seconds),
-                limit=config.limit
+                limit=config.limit,
             )
 
     async def get_current_count(self, key: str, config: RateLimitConfig) -> int:
@@ -311,7 +282,7 @@ class LeakyBucketRateLimiter(RateLimiterInterface):
         redis_key = f"ratelimit:leaky:{config.scope.value}:{key}"
         bucket = await self.redis.get(redis_key)
         if bucket:
-            water_level = int(bucket.decode().split(':')[0])
+            water_level = int(bucket.decode().split(":")[0])
             return water_level
         return 0
 
@@ -330,11 +301,7 @@ class FixedWindowRateLimiter(RateLimiterInterface):
     def __init__(self, redis_client: redis.Redis):
         self.redis = redis_client
 
-    async def is_allowed(
-        self,
-        key: str,
-        config: RateLimitConfig
-    ) -> RateLimitResult:
+    async def is_allowed(self, key: str, config: RateLimitConfig) -> RateLimitResult:
         """Prüft mit Fixed Window Algorithmus"""
 
         now = datetime.utcnow()
@@ -359,7 +326,7 @@ class FixedWindowRateLimiter(RateLimiterInterface):
             reset_at=reset_at,
             retry_after=int((reset_at - now).total_seconds()) if not allowed else None,
             limit=config.limit,
-            current_count=current
+            current_count=current,
         )
 
     async def get_current_count(self, key: str, config: RateLimitConfig) -> int:

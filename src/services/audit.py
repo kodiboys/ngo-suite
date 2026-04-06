@@ -2,10 +2,10 @@
 # MODULE: Audit Service mit Decorator & DSGVO-Konformität
 # Automatisches Logging aller CRUD-Operationen mit vorher/nachher Werten
 
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any
-from collections.abc import Callable
 from uuid import UUID
 
 from fastapi import HTTPException, Request
@@ -16,11 +16,9 @@ from src.core.entities.base import AuditLog, Donation, User
 
 # ==================== Audit Decorator ====================
 
+
 def audit_log(
-    action: str,
-    entity_type: str,
-    requires_four_eyes: bool = False,
-    sensitive_fields: list = None
+    action: str, entity_type: str, requires_four_eyes: bool = False, sensitive_fields: list = None
 ):
     """
     Decorator für automatisches Audit-Logging
@@ -30,6 +28,7 @@ def audit_log(
         async def create_donation(...):
             ...
     """
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -104,12 +103,14 @@ def audit_log(
                 user_id=user_id,
                 action=action,
                 entity_type=entity_type,
-                entity_id=entity_id if entity_id else (result.id if hasattr(result, "id") else None),
+                entity_id=(
+                    entity_id if entity_id else (result.id if hasattr(result, "id") else None)
+                ),
                 old_values=old_values,
                 new_values=new_values or (result.dict() if hasattr(result, "dict") else None),
                 ip_address=ip_address,
                 requires_four_eyes=requires_four_eyes,
-                retention_until=datetime.utcnow() + timedelta(days=3650)  # 10 Jahre
+                retention_until=datetime.utcnow() + timedelta(days=3650),  # 10 Jahre
             )
 
             if session:
@@ -117,15 +118,19 @@ def audit_log(
                 await session.commit()
 
             return result
+
         return wrapper
+
     return decorator
 
+
 # ==================== DSGVO Service ====================
+
 
 class DSGVOService:
     """DSGVO-konforme Datenlöschung & Export"""
 
-    def __init__(self, session_factory, audit_service: 'AuditService'):
+    def __init__(self, session_factory, audit_service: "AuditService"):
         self.session_factory = session_factory
         self.audit_service = audit_service
 
@@ -161,14 +166,14 @@ class DSGVOService:
                 action="DSGVO_DELETION_REQUEST",
                 entity_type="user",
                 entity_id=user_id,
-                metadata={"reason": reason, "pseudonymized_at": datetime.utcnow().isoformat()}
+                metadata={"reason": reason, "pseudonymized_at": datetime.utcnow().isoformat()},
             )
 
             return {
                 "status": "pseudonymized",
                 "message": "Your data has been pseudonymized in accordance with GDPR Art. 17",
                 "timestamp": datetime.utcnow().isoformat(),
-                "retention_period": "Financial data retained for 10 years (HGB §257)"
+                "retention_period": "Financial data retained for 10 years (HGB §257)",
             }
 
     async def export_user_data(self, user_id: UUID) -> dict[str, Any]:
@@ -193,7 +198,7 @@ class DSGVOService:
                     "name": user.name_encrypted,
                     "role": user.role.value,
                     "created_at": user.created_at.isoformat(),
-                    "last_login": user.last_login_at.isoformat() if user.last_login_at else None
+                    "last_login": user.last_login_at.isoformat() if user.last_login_at else None,
                 },
                 "donations": [
                     {
@@ -201,12 +206,12 @@ class DSGVOService:
                         "amount": float(d.amount),
                         "project_id": str(d.project_id),
                         "created_at": d.created_at.isoformat(),
-                        "payment_status": d.payment_status
+                        "payment_status": d.payment_status,
                     }
                     for d in donations.scalars()
                 ],
                 "export_date": datetime.utcnow().isoformat(),
-                "format_version": "1.0"
+                "format_version": "1.0",
             }
 
             # Audit-Log für Export
@@ -215,7 +220,7 @@ class DSGVOService:
                 action="DATA_EXPORT",
                 entity_type="user",
                 entity_id=user_id,
-                metadata={"export_size": len(str(export_data))}
+                metadata={"export_size": len(str(export_data))},
             )
 
             return export_data
@@ -233,15 +238,14 @@ class DSGVOService:
             await session.commit()
 
             await self.audit_service.log(
-                user_id=user_id,
-                action="CONSENT_WITHDRAWN",
-                entity_type="user",
-                entity_id=user_id
+                user_id=user_id, action="CONSENT_WITHDRAWN", entity_type="user", entity_id=user_id
             )
 
             return {"status": "consent withdrawn", "timestamp": datetime.utcnow().isoformat()}
 
+
 # ==================== Audit Service ====================
+
 
 class AuditService:
     """Service für Audit-Log Zugriff & Reports"""
@@ -249,10 +253,17 @@ class AuditService:
     def __init__(self, session_factory):
         self.session_factory = session_factory
 
-    async def log(self, user_id: UUID, action: str, entity_type: str,
-                  entity_id: UUID = None, old_values: dict = None,
-                  new_values: dict = None, metadata: dict = None,
-                  ip_address: str = None):
+    async def log(
+        self,
+        user_id: UUID,
+        action: str,
+        entity_type: str,
+        entity_id: UUID = None,
+        old_values: dict = None,
+        new_values: dict = None,
+        metadata: dict = None,
+        ip_address: str = None,
+    ):
         """Programmatisches Audit-Log"""
         async with self.session_factory() as session:
             audit = AuditLog(
@@ -264,19 +275,25 @@ class AuditService:
                 new_values=new_values,
                 ip_address=ip_address or "system",
                 metadata=metadata,
-                retention_until=datetime.utcnow() + timedelta(days=3650)
+                retention_until=datetime.utcnow() + timedelta(days=3650),
             )
             session.add(audit)
             await session.commit()
 
-    async def get_audit_trail(self, entity_type: str, entity_id: UUID,
-                               start_date: datetime = None, end_date: datetime = None) -> list:
+    async def get_audit_trail(
+        self,
+        entity_type: str,
+        entity_id: UUID,
+        start_date: datetime = None,
+        end_date: datetime = None,
+    ) -> list:
         """Ruft Audit-Trail für eine Entität ab (GoBD-konform)"""
         async with self.session_factory() as session:
-            stmt = select(AuditLog).where(
-                AuditLog.entity_type == entity_type,
-                AuditLog.entity_id == entity_id
-            ).order_by(AuditLog.timestamp)
+            stmt = (
+                select(AuditLog)
+                .where(AuditLog.entity_type == entity_type, AuditLog.entity_id == entity_id)
+                .order_by(AuditLog.timestamp)
+            )
 
             if start_date:
                 stmt = stmt.where(AuditLog.timestamp >= start_date)
@@ -294,7 +311,7 @@ class AuditService:
                     "old_values": log.old_values,
                     "new_values": log.new_values,
                     "ip_address": log.ip_address,
-                    "reason": log.reason
+                    "reason": log.reason,
                 }
                 for log in logs
             ]
@@ -309,9 +326,11 @@ class AuditService:
             end_date = datetime(year, 12, 31, 23, 59, 59)
 
             # Alle Audit-Logs für das Jahr
-            stmt = select(AuditLog).where(
-                AuditLog.timestamp.between(start_date, end_date)
-            ).order_by(AuditLog.timestamp)
+            stmt = (
+                select(AuditLog)
+                .where(AuditLog.timestamp.between(start_date, end_date))
+                .order_by(AuditLog.timestamp)
+            )
             result = await session.execute(stmt)
             logs = result.scalars().all()
 
@@ -321,7 +340,7 @@ class AuditService:
                 "by_action": {},
                 "critical_events": [],
                 "four_eyes_required": [],
-                "money_laundering_flags": []
+                "money_laundering_flags": [],
             }
 
             for log in logs:
@@ -333,19 +352,23 @@ class AuditService:
                     old_amount = log.old_values.get("amount")
                     new_amount = log.new_values.get("amount")
                     if old_amount and new_amount and abs(new_amount - old_amount) > 5000:
-                        stats["critical_events"].append({
-                            "timestamp": log.timestamp.isoformat(),
-                            "entity_id": str(log.entity_id),
-                            "change": float(new_amount - old_amount)
-                        })
+                        stats["critical_events"].append(
+                            {
+                                "timestamp": log.timestamp.isoformat(),
+                                "entity_id": str(log.entity_id),
+                                "change": float(new_amount - old_amount),
+                            }
+                        )
 
                 # 4-Augen-Prinzip
                 if log.requires_four_eyes and not log.four_eyes_approved:
-                    stats["four_eyes_required"].append({
-                        "timestamp": log.timestamp.isoformat(),
-                        "action": log.action,
-                        "entity_id": str(log.entity_id)
-                    })
+                    stats["four_eyes_required"].append(
+                        {
+                            "timestamp": log.timestamp.isoformat(),
+                            "action": log.action,
+                            "entity_id": str(log.entity_id),
+                        }
+                    )
 
             # Berechne Merkle-Root für Prüfpfad
             merkle_root = self._compute_merkle_root(logs)
@@ -356,7 +379,7 @@ class AuditService:
                 "merkle_root": merkle_root,
                 "report_generated": datetime.utcnow().isoformat(),
                 "retention_compliant": True,
-                "next_audit_due": datetime(year + 1, 6, 30).isoformat()
+                "next_audit_due": datetime(year + 1, 6, 30).isoformat(),
             }
 
     def _compute_merkle_root(self, logs: list) -> str:
@@ -372,7 +395,8 @@ class AuditService:
         while len(hashes) > 1:
             if len(hashes) % 2 == 1:
                 hashes.append(hashes[-1])
-            hashes = [hashlib.sha256(hashes[i] + hashes[i+1]).digest()
-                     for i in range(0, len(hashes), 2)]
+            hashes = [
+                hashlib.sha256(hashes[i] + hashes[i + 1]).digest() for i in range(0, len(hashes), 2)
+            ]
 
         return hashes[0].hex()

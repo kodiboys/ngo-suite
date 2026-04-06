@@ -18,11 +18,12 @@ from src.services.social_service import SocialMediaService
 
 # ==================== Unit Tests ====================
 
+
 @pytest.mark.asyncio
 async def test_twitter_post_creation():
     """Test Twitter Post Erstellung"""
 
-    with patch('tweepy.API') as mock_tweepy:
+    with patch("tweepy.API") as mock_tweepy:
         mock_api = Mock()
         mock_tweet = Mock()
         mock_tweet.id = 123456789
@@ -37,7 +38,7 @@ async def test_twitter_post_creation():
             platform=SocialPlatform.TWITTER,
             text="Test tweet",
             hashtags=["test", "twitter"],
-            status=PostStatus.PENDING
+            status=PostStatus.PENDING,
         )
 
         result = await provider.post(post)
@@ -53,25 +54,15 @@ async def test_post_validation():
 
     # Twitter: Max 280 chars
     with pytest.raises(ValueError):
-        request = CreatePostRequest(
-            text="x" * 300,
-            platform=SocialPlatform.TWITTER,
-            hashtags=[]
-        )
+        request = CreatePostRequest(text="x" * 300, platform=SocialPlatform.TWITTER, hashtags=[])
 
     # Instagram: Max 2200 chars
     with pytest.raises(ValueError):
-        request = CreatePostRequest(
-            text="x" * 2300,
-            platform=SocialPlatform.INSTAGRAM,
-            hashtags=[]
-        )
+        request = CreatePostRequest(text="x" * 2300, platform=SocialPlatform.INSTAGRAM, hashtags=[])
 
     # Gültiger Post
     request = CreatePostRequest(
-        text="Valid post",
-        platform=SocialPlatform.LINKEDIN,
-        hashtags=["valid"]
+        text="Valid post", platform=SocialPlatform.LINKEDIN, hashtags=["valid"]
     )
     assert request.text == "Valid post"
 
@@ -101,6 +92,7 @@ async def test_social_queue():
 
 # ==================== Integration Tests ====================
 
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_full_social_workflow(db_session, redis_client):
@@ -115,7 +107,7 @@ async def test_full_social_workflow(db_session, redis_client):
     request = CreatePostRequest(
         text="Integration test post",
         platform=SocialPlatform.TWITTER,
-        hashtags=["integration", "test"]
+        hashtags=["integration", "test"],
     )
 
     post = await service.create_post(request, uuid4())
@@ -126,7 +118,7 @@ async def test_full_social_workflow(db_session, redis_client):
     await service.queue.enqueue(post.id, priority=1)
 
     # 3. Publish Post (Mocked)
-    with patch.object(service.providers[SocialPlatform.TWITTER], 'post') as mock_post:
+    with patch.object(service.providers[SocialPlatform.TWITTER], "post") as mock_post:
         mock_post.return_value = post
         mock_post.return_value.status = PostStatus.PUBLISHED
 
@@ -134,15 +126,11 @@ async def test_full_social_workflow(db_session, redis_client):
         assert published.status == PostStatus.PUBLISHED
 
     # 4. Get Analytics
-    with patch.object(service.providers[SocialPlatform.TWITTER], 'get_post_stats') as mock_stats:
-        mock_stats.return_value = {
-            'like_count': 10,
-            'retweet_count': 5,
-            'impression_count': 1000
-        }
+    with patch.object(service.providers[SocialPlatform.TWITTER], "get_post_stats") as mock_stats:
+        mock_stats.return_value = {"like_count": 10, "retweet_count": 5, "impression_count": 1000}
 
         analytics = await service.get_post_analytics(post.id)
-        assert analytics['likes'] == 10
+        assert analytics["likes"] == 10
 
 
 # ==================== Property-Based Tests ====================
@@ -153,7 +141,7 @@ from hypothesis import strategies as st
 
 @given(
     text=st.text(min_size=1, max_size=280),
-    hashtags=st.lists(st.text(min_size=1, max_size=20), max_size=5)
+    hashtags=st.lists(st.text(min_size=1, max_size=20), max_size=5),
 )
 def test_tweet_formatting(text, hashtags):
     """Test: Tweet Formatierung mit Hashtags"""
@@ -163,18 +151,19 @@ def test_tweet_formatting(text, hashtags):
         platform=SocialPlatform.TWITTER,
         text=text,
         hashtags=hashtags,
-        status=PostStatus.DRAFT
+        status=PostStatus.DRAFT,
     )
 
     # Simuliere Formatierung
     formatted = text
     if hashtags:
-        formatted += ' ' + ' '.join([f'#{tag}' for tag in hashtags])
+        formatted += " " + " ".join([f"#{tag}" for tag in hashtags])
 
     assert len(formatted) <= 280 or text == formatted
 
 
 # ==================== Performance Tests ====================
+
 
 @pytest.mark.benchmark
 def test_post_serialization(benchmark):
@@ -186,12 +175,13 @@ def test_post_serialization(benchmark):
         platform=SocialPlatform.TWITTER,
         text="Test post for benchmarking" * 10,
         hashtags=["benchmark", "test", "performance"],
-        status=PostStatus.DRAFT
+        status=PostStatus.DRAFT,
     )
 
     def serialize():
         import json
         from dataclasses import asdict
+
         return json.dumps(asdict(post), default=str)
 
     result = benchmark(serialize)

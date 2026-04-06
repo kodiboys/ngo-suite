@@ -3,7 +3,7 @@
 # Enterprise Payment Integration mit Circuit Breaker, Retry, Idempotency
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
@@ -12,11 +12,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, validator
 
-
 # ==================== Enums & Models ====================
+
 
 class PaymentProvider(str, Enum):
     """Unterstützte Zahlungsanbieter"""
+
     STRIPE = "stripe"
     PAYPAL = "paypal"
     KLARNA = "klarna"
@@ -24,26 +25,28 @@ class PaymentProvider(str, Enum):
 
 class PaymentStatus(str, Enum):
     """Status einer Zahlung"""
-    PENDING = "pending"              # Ausstehend
-    PROCESSING = "processing"        # In Verarbeitung
-    SUCCEEDED = "succeeded"          # Erfolgreich
-    FAILED = "failed"                # Fehlgeschlagen
-    REFUNDED = "refunded"            # Rückerstattet
+
+    PENDING = "pending"  # Ausstehend
+    PROCESSING = "processing"  # In Verarbeitung
+    SUCCEEDED = "succeeded"  # Erfolgreich
+    FAILED = "failed"  # Fehlgeschlagen
+    REFUNDED = "refunded"  # Rückerstattet
     PARTIALLY_REFUNDED = "partially_refunded"  # Teilweise erstattet
-    DISPUTED = "disputed"            # Beanstandet
-    CHARGEBACK = "chargeback"        # Rückbuchung
+    DISPUTED = "disputed"  # Beanstandet
+    CHARGEBACK = "chargeback"  # Rückbuchung
 
 
 class PaymentMethod(str, Enum):
     """Zahlungsmethoden"""
-    CREDIT_CARD = "credit_card"      # Kreditkarte
-    PAYPAL = "paypal"                # PayPal
-    KLARNA_PAY_NOW = "klarna_pay_now"      # Klarna Sofort
+
+    CREDIT_CARD = "credit_card"  # Kreditkarte
+    PAYPAL = "paypal"  # PayPal
+    KLARNA_PAY_NOW = "klarna_pay_now"  # Klarna Sofort
     KLARNA_PAY_LATER = "klarna_pay_later"  # Klarna Rechnung
-    KLARNA_SLICE_IT = "klarna_slice_it"    # Klarna Raten
-    SEPA = "sepa"                    # SEPA Lastschrift
-    SOFORT = "sofort"                # SOFORT Überweisung
-    GIROPAY = "giropay"              # Giropay
+    KLARNA_SLICE_IT = "klarna_slice_it"  # Klarna Raten
+    SEPA = "sepa"  # SEPA Lastschrift
+    SOFORT = "sofort"  # SOFORT Überweisung
+    GIROPAY = "giropay"  # Giropay
 
 
 @dataclass
@@ -52,16 +55,17 @@ class PaymentIntent:
     Einheitliches Payment Intent Model für alle Provider
     Wird von allen Providern zurückgegeben
     """
-    id: str                                              # Provider-spezifische ID
-    provider: PaymentProvider                           # Zahlungsanbieter
-    amount: Decimal                                     # Betrag
-    currency: str                                       # Währung (EUR, USD, etc.)
-    status: PaymentStatus                               # Aktueller Status
-    client_secret: Optional[str] = None                 # Client Secret (Stripe)
-    payment_method: Optional[PaymentMethod] = None      # Zahlungsmethode
-    donor_email: Optional[str] = None                   # Spender E-Mail
-    donor_name: Optional[str] = None                    # Spender Name
-    project_id: Optional[UUID] = None                   # Projekt-ID
+
+    id: str  # Provider-spezifische ID
+    provider: PaymentProvider  # Zahlungsanbieter
+    amount: Decimal  # Betrag
+    currency: str  # Währung (EUR, USD, etc.)
+    status: PaymentStatus  # Aktueller Status
+    client_secret: Optional[str] = None  # Client Secret (Stripe)
+    payment_method: Optional[PaymentMethod] = None  # Zahlungsmethode
+    donor_email: Optional[str] = None  # Spender E-Mail
+    donor_name: Optional[str] = None  # Spender Name
+    project_id: Optional[UUID] = None  # Projekt-ID
     metadata: dict[str, Any] = field(default_factory=dict)  # Zusätzliche Metadaten
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
@@ -72,9 +76,10 @@ class RefundRequest:
     """
     Einheitliches Refund Model für Rückerstattungen
     """
-    payment_intent_id: str                              # Original Payment Intent ID
-    amount: Optional[Decimal] = None                    # None = vollständige Rückerstattung
-    reason: Optional[str] = None                        # Grund für Rückerstattung
+
+    payment_intent_id: str  # Original Payment Intent ID
+    amount: Optional[Decimal] = None  # None = vollständige Rückerstattung
+    reason: Optional[str] = None  # Grund für Rückerstattung
     metadata: dict[str, Any] = field(default_factory=dict)  # Zusätzliche Metadaten
 
 
@@ -83,10 +88,11 @@ class RefundResult:
     """
     Ergebnis einer Rückerstattung
     """
-    id: str                                              # Refund ID beim Provider
-    payment_intent_id: str                              # Original Payment Intent ID
-    amount: Decimal                                     # Rückerstatteter Betrag
-    status: str                                         # Status der Rückerstattung
+
+    id: str  # Refund ID beim Provider
+    payment_intent_id: str  # Original Payment Intent ID
+    amount: Decimal  # Rückerstatteter Betrag
+    status: str  # Status der Rückerstattung
     created_at: datetime = field(default_factory=datetime.utcnow)
 
 
@@ -96,77 +102,52 @@ class WebhookEvent:
     Einheitliches Webhook Event Model für alle Provider
     Wird von Webhook Handlern zurückgegeben
     """
-    id: str                                              # Event ID beim Provider
-    provider: PaymentProvider                           # Zahlungsanbieter
-    event_type: str                                     # Event Typ (z.B. payment_intent.succeeded)
-    payment_intent_id: Optional[str] = None             # Betroffene Payment Intent ID
+
+    id: str  # Event ID beim Provider
+    provider: PaymentProvider  # Zahlungsanbieter
+    event_type: str  # Event Typ (z.B. payment_intent.succeeded)
+    payment_intent_id: Optional[str] = None  # Betroffene Payment Intent ID
     data: dict[str, Any] = field(default_factory=dict)  # Event-Daten
     created_at: datetime = field(default_factory=datetime.utcnow)
-    is_test: bool = False                               # Test-Event (Sandbox)
+    is_test: bool = False  # Test-Event (Sandbox)
 
 
 # ==================== Pydantic Models für API ====================
+
 
 class CreatePaymentRequest(BaseModel):
     """
     API Request Schema für Payment Creation
     Wird von der API validiert
     """
+
     amount: Decimal = Field(
-        ...,
-        gt=0,
-        le=100000,
-        description="Betrag in EUR (min 1€, max 100.000€)"
+        ..., gt=0, le=100000, description="Betrag in EUR (min 1€, max 100.000€)"
     )
-    currency: str = Field(
-        "EUR",
-        regex="^(EUR|USD|GBP)$",
-        description="Währung (EUR, USD, GBP)"
-    )
-    payment_method: PaymentMethod = Field(
-        ...,
-        description="Zahlungsmethode"
-    )
-    success_url: Optional[str] = Field(
-        None,
-        description="URL für erfolgreiche Zahlung (Redirect)"
-    )
-    cancel_url: Optional[str] = Field(
-        None,
-        description="URL für abgebrochene Zahlung (Redirect)"
-    )
+    currency: str = Field("EUR", regex="^(EUR|USD|GBP)$", description="Währung (EUR, USD, GBP)")
+    payment_method: PaymentMethod = Field(..., description="Zahlungsmethode")
+    success_url: Optional[str] = Field(None, description="URL für erfolgreiche Zahlung (Redirect)")
+    cancel_url: Optional[str] = Field(None, description="URL für abgebrochene Zahlung (Redirect)")
     donor_email: str = Field(
         ...,
-        regex=r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
-        description="E-Mail des Spenders"
+        regex=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
+        description="E-Mail des Spenders",
     )
-    donor_name: Optional[str] = Field(
-        None,
-        description="Name des Spenders (optional)"
-    )
-    project_id: UUID = Field(
-        ...,
-        description="Projekt-ID für die Spende"
-    )
-    metadata: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Zusätzliche Metadaten"
-    )
+    donor_name: Optional[str] = Field(None, description="Name des Spenders (optional)")
+    project_id: UUID = Field(..., description="Projekt-ID für die Spende")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Zusätzliche Metadaten")
 
-    @validator('amount')
+    @validator("amount")
     def validate_amount(cls, v: Decimal) -> Decimal:
         """Validiert den Spendenbetrag"""
         if v < 1:
-            raise ValueError('Minimum donation is 1 EUR')
+            raise ValueError("Minimum donation is 1 EUR")
         if v > 100000:
-            raise ValueError('Maximum donation is 100,000 EUR')
+            raise ValueError("Maximum donation is 100,000 EUR")
         return v
 
     class Config:
-        json_encoders = {
-            Decimal: str,
-            UUID: str
-        }
+        json_encoders = {Decimal: str, UUID: str}
 
 
 class PaymentResponse(BaseModel):
@@ -174,6 +155,7 @@ class PaymentResponse(BaseModel):
     API Response Schema für Payment Creation
     Wird an den Client zurückgegeben
     """
+
     payment_intent_id: str = Field(..., description="Payment Intent ID")
     client_secret: Optional[str] = Field(None, description="Client Secret (für Stripe)")
     status: PaymentStatus = Field(..., description="Aktueller Status")
@@ -186,6 +168,7 @@ class PaymentResponse(BaseModel):
 
 
 # ==================== Abstract Payment Provider Interface ====================
+
 
 class PaymentProviderInterface(ABC):
     """
@@ -211,9 +194,7 @@ class PaymentProviderInterface(ABC):
 
     @abstractmethod
     async def confirm_payment(
-        self,
-        payment_intent_id: str,
-        payment_method_id: str | None = None
+        self, payment_intent_id: str, payment_method_id: str | None = None
     ) -> PaymentIntent:
         """
         Bestätigt eine Zahlung (z.B. nach 3D Secure)
@@ -254,11 +235,7 @@ class PaymentProviderInterface(ABC):
         pass
 
     @abstractmethod
-    async def handle_webhook(
-        self,
-        payload: bytes,
-        signature: str
-    ) -> WebhookEvent:
+    async def handle_webhook(self, payload: bytes, signature: str) -> WebhookEvent:
         """
         Verarbeitet eingehende Webhooks vom Provider
 
@@ -290,6 +267,7 @@ class PaymentProviderInterface(ABC):
 
 # ==================== Idempotency Key Manager ====================
 
+
 class IdempotencyManager:
     """
     Idempotency Keys für sichere Wiederholungen
@@ -318,12 +296,7 @@ class IdempotencyManager:
         self.redis = redis_client
 
     async def process_with_idempotency(
-        self,
-        key: str,
-        func,
-        ttl_seconds: int = 86400,
-        *args,
-        **kwargs
+        self, key: str, func, ttl_seconds: int = 86400, *args, **kwargs
     ):
         """
         Führt eine Funktion mit Idempotency-Schutz aus
@@ -370,7 +343,7 @@ class IdempotencyManager:
         Serialisiert das Ergebnis für Redis Cache
         Unterstützt Dataclasses und Dicts
         """
-        if hasattr(result, '__dataclass_fields__'):
+        if hasattr(result, "__dataclass_fields__"):
             # Dataclass zu Dict konvertieren
             return asdict(result)
         if isinstance(result, dict):
@@ -391,16 +364,18 @@ class IdempotencyManager:
 
 # ==================== Exceptions ====================
 
+
 class PaymentProviderError(Exception):
     """
     Base Exception für Payment Provider Fehler
     Wird geworfen, wenn ein Zahlungsanbieter einen Fehler meldet
     """
+
     def __init__(
         self,
         message: str,
         provider: PaymentProvider | None = None,
-        original_error: Exception | None = None
+        original_error: Exception | None = None,
     ):
         self.provider = provider
         self.original_error = original_error
@@ -412,6 +387,7 @@ class WebhookVerificationError(Exception):
     Webhook Signatur Verifikation fehlgeschlagen
     Wird geworfen, wenn die Webhook-Signatur ungültig ist
     """
+
     def __init__(self, message: str, provider: PaymentProvider | None = None):
         self.provider = provider
         super().__init__(message)
@@ -422,6 +398,7 @@ class PaymentTimeoutError(PaymentProviderError):
     Timeout bei der Zahlungsabwicklung
     Wird geworfen, wenn der Zahlungsanbieter nicht antwortet
     """
+
     pass
 
 
@@ -430,4 +407,5 @@ class PaymentValidationError(PaymentProviderError):
     Validierungsfehler bei Zahlungsdaten
     Wird geworfen, wenn die Zahlungsdaten ungültig sind
     """
+
     pass

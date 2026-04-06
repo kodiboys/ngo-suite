@@ -4,9 +4,9 @@
 
 import logging
 from collections import deque
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from typing import Any
-from collections.abc import Awaitable, Callable
 
 import redis.asyncio as redis
 
@@ -31,10 +31,7 @@ class CircuitBreaker(CircuitBreakerInterface):
     """
 
     def __init__(
-        self,
-        config: CircuitBreakerConfig,
-        redis_client: redis.Redis,
-        instance_id: str = "default"
+        self, config: CircuitBreakerConfig, redis_client: redis.Redis, instance_id: str = "default"
     ):
         self.config = config
         self.redis = redis_client
@@ -50,7 +47,7 @@ class CircuitBreaker(CircuitBreakerInterface):
         func: Callable[..., Awaitable[Any]],
         *args,
         fallback: Callable[..., Awaitable[Any]] | None = None,
-        **kwargs
+        **kwargs,
     ) -> Any:
         """
         Führt eine Funktion mit Circuit Breaker Schutz aus
@@ -117,7 +114,9 @@ class CircuitBreaker(CircuitBreakerInterface):
             success_count = await self._count_recent_successes()
 
             if success_count >= self.config.success_threshold:
-                logger.info(f"Circuit breaker {self.config.name} closing after {success_count} successes")
+                logger.info(
+                    f"Circuit breaker {self.config.name} closing after {success_count} successes"
+                )
                 await self._set_state(CircuitBreakerState.CLOSED)
                 await self._reset_counts()
 
@@ -143,13 +142,19 @@ class CircuitBreaker(CircuitBreakerInterface):
                     f"Circuit breaker {self.config.name} opening after {failure_count} failures"
                 )
                 await self._set_state(CircuitBreakerState.OPEN)
-                await self._set_open_until(datetime.utcnow() + timedelta(seconds=self.config.timeout_seconds))
+                await self._set_open_until(
+                    datetime.utcnow() + timedelta(seconds=self.config.timeout_seconds)
+                )
 
         elif status.state == CircuitBreakerState.HALF_OPEN:
             # Ein Fehler in Half-Open öffnet den Circuit sofort
-            logger.warning(f"Circuit breaker {self.config.name} reopening after failure in HALF_OPEN")
+            logger.warning(
+                f"Circuit breaker {self.config.name} reopening after failure in HALF_OPEN"
+            )
             await self._set_state(CircuitBreakerState.OPEN)
-            await self._set_open_until(datetime.utcnow() + timedelta(seconds=self.config.timeout_seconds))
+            await self._set_open_until(
+                datetime.utcnow() + timedelta(seconds=self.config.timeout_seconds)
+            )
 
     async def get_status(self) -> CircuitBreakerStatus:
         """Holt aktuellen Status"""
@@ -179,7 +184,7 @@ class CircuitBreaker(CircuitBreakerInterface):
             last_success_at=last_success,
             open_until=open_until,
             total_failures=total_failures,
-            total_successes=total_successes
+            total_successes=total_successes,
         )
 
     async def force_open(self):
@@ -260,6 +265,7 @@ class CircuitBreaker(CircuitBreakerInterface):
 
 class CircuitBreakerOpenException(Exception):
     """Wird geworfen wenn Circuit Breaker geöffnet ist"""
+
     pass
 
 
@@ -274,9 +280,7 @@ class CircuitBreakerRegistry:
         self._breakers: dict[str, CircuitBreaker] = {}
 
     def get_or_create(
-        self,
-        config: CircuitBreakerConfig,
-        instance_id: str = "default"
+        self, config: CircuitBreakerConfig, instance_id: str = "default"
     ) -> CircuitBreaker:
         """Holt oder erstellt einen Circuit Breaker"""
         key = f"{config.name}:{instance_id}"

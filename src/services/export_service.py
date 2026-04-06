@@ -39,7 +39,7 @@ class ExportService:
         format: str = "excel",
         project_id: UUID | None = None,
         include_personal_data: bool = True,
-        user_id: UUID | None = None
+        user_id: UUID | None = None,
     ) -> bytes:
         """
         Exportiert Spenden in verschiedenen Formaten
@@ -49,7 +49,7 @@ class ExportService:
             # Lade Spenden
             stmt = select(Donation).where(
                 Donation.created_at.between(start_date, end_date),
-                Donation.payment_status == "succeeded"
+                Donation.payment_status == "succeeded",
             )
 
             if project_id:
@@ -69,7 +69,9 @@ class ExportService:
                     "Projekt-ID": str(donation.project_id),
                     "Zahlungsmethode": donation.payment_provider,
                     "Status": donation.payment_status,
-                    "Bescheinigung generiert": "Ja" if donation.donation_receipt_generated else "Nein"
+                    "Bescheinigung generiert": (
+                        "Ja" if donation.donation_receipt_generated else "Nein"
+                    ),
                 }
 
                 # Personal data (nur wenn erlaubt)
@@ -91,11 +93,7 @@ class ExportService:
             else:
                 raise HTTPException(status_code=400, detail=f"Unsupported format: {format}")
 
-    async def export_projects(
-        self,
-        status: str | None = None,
-        format: str = "excel"
-    ) -> bytes:
+    async def export_projects(self, status: str | None = None, format: str = "excel") -> bytes:
         """Exportiert Projekte mit KPIs"""
         async with self.session_factory() as session:
             stmt = select(Project)
@@ -113,10 +111,16 @@ class ExportService:
                     "Beschreibung": project.description or "",
                     "Budget": float(project.budget_total),
                     "Spenden": float(project.donations_total),
-                    "Fortschritt": f"{(project.donations_total / project.budget_total * 100):.1f}%" if project.budget_total > 0 else "0%",
+                    "Fortschritt": (
+                        f"{(project.donations_total / project.budget_total * 100):.1f}%"
+                        if project.budget_total > 0
+                        else "0%"
+                    ),
                     "Status": project.status,
                     "Startdatum": project.start_date.strftime("%d.%m.%Y"),
-                    "Enddatum": project.end_date.strftime("%d.%m.%Y") if project.end_date else "laufend"
+                    "Enddatum": (
+                        project.end_date.strftime("%d.%m.%Y") if project.end_date else "laufend"
+                    ),
                 }
                 export_data.append(row)
 
@@ -127,11 +131,7 @@ class ExportService:
             else:
                 return await self._to_json(export_data)
 
-    async def export_dsgvo_data(
-        self,
-        user_id: UUID,
-        format: str = "json"
-    ) -> bytes:
+    async def export_dsgvo_data(self, user_id: UUID, format: str = "json") -> bytes:
         """
         DSGVO Art.15: Auskunftsrecht
         Exportiert alle personenbezogenen Daten eines Users
@@ -157,7 +157,9 @@ class ExportService:
                     "role": user.role.value,
                     "created_at": user.created_at.isoformat(),
                     "last_login": user.last_login_at.isoformat() if user.last_login_at else None,
-                    "consent_given_at": user.consent_given_at.isoformat() if user.consent_given_at else None
+                    "consent_given_at": (
+                        user.consent_given_at.isoformat() if user.consent_given_at else None
+                    ),
                 },
                 "donations": [
                     {
@@ -166,11 +168,11 @@ class ExportService:
                         "project_id": str(d.project_id),
                         "created_at": d.created_at.isoformat(),
                         "payment_status": d.payment_status,
-                        "donation_receipt_generated": d.donation_receipt_generated
+                        "donation_receipt_generated": d.donation_receipt_generated,
                     }
                     for d in donations
                 ],
-                "audit_logs": []  # In Production: Letzte 100 Audit-Logs
+                "audit_logs": [],  # In Production: Letzte 100 Audit-Logs
             }
 
             # Audit-Log für Export
@@ -181,17 +183,17 @@ class ExportService:
                 entity_id=user_id,
                 new_values={"export_format": format, "export_size": len(str(export_data))},
                 ip_address="system",
-                retention_until=datetime.utcnow() + timedelta(days=3650)
+                retention_until=datetime.utcnow() + timedelta(days=3650),
             )
             session.add(audit)
             await session.commit()
 
             if format == "json":
-                return json.dumps(export_data, indent=2).encode('utf-8')
+                return json.dumps(export_data, indent=2).encode("utf-8")
             elif format == "csv":
                 # Konvertiere zu CSV
                 df = pd.DataFrame([export_data])
-                return df.to_csv(index=False).encode('utf-8')
+                return df.to_csv(index=False).encode("utf-8")
             else:
                 raise HTTPException(status_code=400, detail=f"Unsupported format: {format}")
 
@@ -201,13 +203,11 @@ class ExportService:
         end_date: datetime,
         entity_type: str | None = None,
         user_id: UUID | None = None,
-        format: str = "excel"
+        format: str = "excel",
     ) -> bytes:
         """Exportiert Audit-Log für Compliance Reports"""
         async with self.session_factory() as session:
-            stmt = select(AuditLog).where(
-                AuditLog.timestamp.between(start_date, end_date)
-            )
+            stmt = select(AuditLog).where(AuditLog.timestamp.between(start_date, end_date))
 
             if entity_type:
                 stmt = stmt.where(AuditLog.entity_type == entity_type)
@@ -226,9 +226,13 @@ class ExportService:
                     "Entity-Typ": log.entity_type,
                     "Entity-ID": str(log.entity_id) if log.entity_id else "-",
                     "IP-Adresse": log.ip_address,
-                    "Alte Werte": json.dumps(log.old_values, ensure_ascii=False) if log.old_values else "-",
-                    "Neue Werte": json.dumps(log.new_values, ensure_ascii=False) if log.new_values else "-",
-                    "Grund": log.reason or "-"
+                    "Alte Werte": (
+                        json.dumps(log.old_values, ensure_ascii=False) if log.old_values else "-"
+                    ),
+                    "Neue Werte": (
+                        json.dumps(log.new_values, ensure_ascii=False) if log.new_values else "-"
+                    ),
+                    "Grund": log.reason or "-",
                 }
                 export_data.append(row)
 
@@ -239,11 +243,7 @@ class ExportService:
             else:
                 return await self._to_json(export_data)
 
-    async def export_financial_report(
-        self,
-        year: int,
-        format: str = "excel"
-    ) -> bytes:
+    async def export_financial_report(self, year: int, format: str = "excel") -> bytes:
         """Exportiert finanziellen Jahresbericht"""
         async with self.session_factory() as session:
             start_date = datetime(year, 1, 1)
@@ -260,16 +260,18 @@ class ExportService:
 
                 stmt = select(func.sum(Donation.amount)).where(
                     Donation.created_at.between(month_start, month_end),
-                    Donation.payment_status == "succeeded"
+                    Donation.payment_status == "succeeded",
                 )
                 result = await session.execute(stmt)
                 total = result.scalar() or 0
 
-                monthly_donations.append({
-                    "Monat": month,
-                    "Monatsname": datetime(year, month, 1).strftime("%B"),
-                    "Spenden": float(total)
-                })
+                monthly_donations.append(
+                    {
+                        "Monat": month,
+                        "Monatsname": datetime(year, month, 1).strftime("%B"),
+                        "Spenden": float(total),
+                    }
+                )
 
             # Projektübersicht
             stmt = select(Project)
@@ -278,34 +280,47 @@ class ExportService:
 
             project_data = []
             for project in projects:
-                project_data.append({
-                    "Projekt": project.name,
-                    "Budget": float(project.budget_total),
-                    "Spenden": float(project.donations_total),
-                    "Ausgaben": float(project.budget_used),
-                    "Fortschritt": f"{(project.donations_total / project.budget_total * 100):.1f}%" if project.budget_total > 0 else "0%"
-                })
+                project_data.append(
+                    {
+                        "Projekt": project.name,
+                        "Budget": float(project.budget_total),
+                        "Spenden": float(project.donations_total),
+                        "Ausgaben": float(project.budget_used),
+                        "Fortschritt": (
+                            f"{(project.donations_total / project.budget_total * 100):.1f}%"
+                            if project.budget_total > 0
+                            else "0%"
+                        ),
+                    }
+                )
 
             # Erstelle Excel mit mehreren Sheets
             output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            with pd.ExcelWriter(output, engine="openpyxl") as writer:
                 # Sheet 1: Monatliche Spenden
                 df_monthly = pd.DataFrame(monthly_donations)
-                df_monthly.to_excel(writer, sheet_name=f'Spenden_{year}', index=False)
+                df_monthly.to_excel(writer, sheet_name=f"Spenden_{year}", index=False)
 
                 # Sheet 2: Projektübersicht
                 df_projects = pd.DataFrame(project_data)
-                df_projects.to_excel(writer, sheet_name='Projekte', index=False)
+                df_projects.to_excel(writer, sheet_name="Projekte", index=False)
 
                 # Sheet 3: Jahreszusammenfassung
-                summary = pd.DataFrame([{
-                    "Jahr": year,
-                    "Gesamtspenden": sum(m["Spenden"] for m in monthly_donations),
-                    "Durchschnitt pro Monat": sum(m["Spenden"] for m in monthly_donations) / 12,
-                    "Aktive Projekte": len([p for p in projects if p.status == "active"]),
-                    "Abgeschlossene Projekte": len([p for p in projects if p.status == "completed"])
-                }])
-                summary.to_excel(writer, sheet_name='Zusammenfassung', index=False)
+                summary = pd.DataFrame(
+                    [
+                        {
+                            "Jahr": year,
+                            "Gesamtspenden": sum(m["Spenden"] for m in monthly_donations),
+                            "Durchschnitt pro Monat": sum(m["Spenden"] for m in monthly_donations)
+                            / 12,
+                            "Aktive Projekte": len([p for p in projects if p.status == "active"]),
+                            "Abgeschlossene Projekte": len(
+                                [p for p in projects if p.status == "completed"]
+                            ),
+                        }
+                    ]
+                )
+                summary.to_excel(writer, sheet_name="Zusammenfassung", index=False)
 
                 # Formatierung
                 for sheet in writer.sheets.values():
@@ -331,7 +346,7 @@ class ExportService:
         df = pd.DataFrame(data)
 
         output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
             df.to_excel(writer, sheet_name=sheet_name[:31], index=False)
 
             # Formatierung
@@ -357,21 +372,21 @@ class ExportService:
             return b""
 
         output = io.StringIO()
-        writer = csv.DictWriter(output, fieldnames=data[0].keys(), delimiter=';')
+        writer = csv.DictWriter(output, fieldnames=data[0].keys(), delimiter=";")
         writer.writeheader()
         writer.writerows(data)
 
-        return output.getvalue().encode('utf-8-sig')
+        return output.getvalue().encode("utf-8-sig")
 
     async def _to_json(self, data: list[dict]) -> bytes:
         """Konvertiert zu JSON"""
-        return json.dumps(data, indent=2, default=str).encode('utf-8')
+        return json.dumps(data, indent=2, default=str).encode("utf-8")
 
     async def create_export_archive(self, exports: list[bytes], filenames: list[str]) -> bytes:
         """Erstellt ZIP-Archiv mit mehreren Exporten"""
         output = io.BytesIO()
 
-        with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as zipf:
             for content, filename in zip(exports, filenames):
                 zipf.writestr(filename, content)
 

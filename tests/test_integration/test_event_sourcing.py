@@ -24,7 +24,7 @@ class TestEventStore:
             aggregate_type="Donation",
             event_type="donation.created",
             data={"amount": 100, "currency": "EUR"},
-            user_id=uuid4()
+            user_id=uuid4(),
         )
 
         assert event.event_id is not None
@@ -44,7 +44,7 @@ class TestEventStore:
                 aggregate_type="Donation",
                 event_type=f"donation.event_{i}",
                 data={"sequence": i},
-                user_id=uuid4()
+                user_id=uuid4(),
             )
 
         events = await store.get_events_for_aggregate(aggregate_id)
@@ -65,7 +65,7 @@ class TestEventStore:
             aggregate_type="Donation",
             event_type="donation.created",
             data={"version": 1},
-            user_id=uuid4()
+            user_id=uuid4(),
         )
 
         # Try to append with wrong expected version
@@ -76,7 +76,7 @@ class TestEventStore:
                 event_type="donation.updated",
                 data={"version": 2},
                 user_id=uuid4(),
-                expected_version=1  # Should be 1, but we already have 1 event
+                expected_version=1,  # Should be 1, but we already have 1 event
             )
 
         # Actually 1 event means next sequence is 2, so expected_version should be 1
@@ -87,7 +87,7 @@ class TestEventStore:
             event_type="donation.updated",
             data={"version": 2},
             user_id=uuid4(),
-            expected_version=1
+            expected_version=1,
         )
 
         assert event.sequence_number == 2
@@ -105,7 +105,7 @@ class TestEventStore:
                 aggregate_type="Donation",
                 event_type="donation.event",
                 data={"value": i},
-                user_id=uuid4()
+                user_id=uuid4(),
             )
 
         is_valid = await store.verify_integrity(aggregate_id)
@@ -133,13 +133,14 @@ class TestEventBus:
             event_type="test.event",
             data={"message": "Hello"},
             user_id=uuid4(),
-            metadata={}
+            metadata={},
         )
 
         await bus.publish(event, store_in_db=False)
 
         # Give handler time to execute
         import asyncio
+
         await asyncio.sleep(0.1)
 
         assert len(received_events) == 1

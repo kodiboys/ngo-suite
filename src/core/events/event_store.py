@@ -34,8 +34,10 @@ logger = logging.getLogger(__name__)
 
 # ==================== Event Types ====================
 
+
 class EventType(str, Enum):
     """Standard Event Types für das System"""
+
     # Donation Events
     DONATION_CREATED = "donation.created"
     DONATION_UPDATED = "donation.updated"
@@ -77,6 +79,7 @@ class EventType(str, Enum):
 
 class EventVersion(str, Enum):
     """Event Versionierung für Schema-Evolution"""
+
     V1 = "1.0"
     V2 = "2.0"
     V3 = "3.0"
@@ -84,9 +87,11 @@ class EventVersion(str, Enum):
 
 # ==================== Event Models ====================
 
+
 @dataclass
 class DomainEvent:
     """Base Domain Event für Event Sourcing"""
+
     event_id: UUID
     aggregate_id: UUID
     aggregate_type: str
@@ -109,6 +114,7 @@ class DomainEvent:
 @dataclass
 class Snapshot:
     """Snapshot für schnelle Wiederherstellung von Aggregaten"""
+
     aggregate_id: UUID
     aggregate_type: str
     version: int
@@ -119,8 +125,10 @@ class Snapshot:
 
 # ==================== SQLAlchemy Models ====================
 
+
 class EventStoreDB(Base):
     """Event Store Tabelle - unveränderlich"""
+
     __tablename__ = "event_store"
     __table_args__ = (
         Index("idx_event_aggregate", "aggregate_id", "sequence_number"),
@@ -163,16 +171,15 @@ class EventStoreDB(Base):
             timestamp=self.timestamp,
             sequence_number=self.sequence_number,
             previous_hash=self.previous_hash,
-            current_hash=self.current_hash
+            current_hash=self.current_hash,
         )
 
 
 class SnapshotStoreDB(Base):
     """Snapshot Store für Performance-Optimierung"""
+
     __tablename__ = "snapshot_store"
-    __table_args__ = (
-        Index("idx_snapshot_aggregate", "aggregate_id", "version"),
-    )
+    __table_args__ = (Index("idx_snapshot_aggregate", "aggregate_id", "version"),)
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     aggregate_id = Column(PGUUID(as_uuid=True), nullable=False, unique=True)
@@ -189,10 +196,9 @@ class SnapshotStoreDB(Base):
 
 class EventSubscriptionDB(Base):
     """Event Subscriptions für CQRS Read Models"""
+
     __tablename__ = "event_subscriptions"
-    __table_args__ = (
-        Index("idx_subscription_name", "subscription_name", "last_processed_event"),
-    )
+    __table_args__ = (Index("idx_subscription_name", "subscription_name", "last_processed_event"),)
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     subscription_name = Column(String(100), nullable=False, unique=True)
@@ -205,6 +211,7 @@ class EventSubscriptionDB(Base):
 
 
 # ==================== Event Store Service ====================
+
 
 class EventStoreService:
     """
@@ -227,7 +234,7 @@ class EventStoreService:
         data: dict[str, Any],
         user_id: UUID | None,
         metadata: dict[str, Any] | None = None,
-        expected_version: int | None = None
+        expected_version: int | None = None,
     ) -> DomainEvent:
         """
         Fügt ein neues Event zum Event Store hinzu
@@ -252,7 +259,7 @@ class EventStoreService:
             if current_max > 0:
                 stmt = select(EventStoreDB).where(
                     EventStoreDB.aggregate_id == aggregate_id,
-                    EventStoreDB.sequence_number == current_max
+                    EventStoreDB.sequence_number == current_max,
                 )
                 result = await session.execute(stmt)
                 last_event = result.scalar_one_or_none()
@@ -270,7 +277,7 @@ class EventStoreService:
                 metadata=metadata or {},
                 user_id=user_id,
                 previous_hash=last_event.current_hash if last_event else None,
-                current_hash=""  # Wird nach Berechnung gesetzt
+                current_hash="",  # Wird nach Berechnung gesetzt
             )
 
             # Berechne Hash (mit vorherigem Hash)
@@ -280,22 +287,25 @@ class EventStoreService:
             await session.commit()
             await session.refresh(event)
 
-            logger.debug(f"Event appended: {event_type} for {aggregate_type}/{aggregate_id} (seq={new_sequence})")
+            logger.debug(
+                f"Event appended: {event_type} for {aggregate_type}/{aggregate_id} (seq={new_sequence})"
+            )
 
             return event.to_domain_event()
 
     async def get_events_for_aggregate(
-        self,
-        aggregate_id: UUID,
-        from_version: int = 1,
-        to_version: int | None = None
+        self, aggregate_id: UUID, from_version: int = 1, to_version: int | None = None
     ) -> list[DomainEvent]:
         """Holt alle Events für ein Aggregate (für Replay)"""
         async with self.session_factory() as session:
-            stmt = select(EventStoreDB).where(
-                EventStoreDB.aggregate_id == aggregate_id,
-                EventStoreDB.sequence_number >= from_version
-            ).order_by(EventStoreDB.sequence_number)
+            stmt = (
+                select(EventStoreDB)
+                .where(
+                    EventStoreDB.aggregate_id == aggregate_id,
+                    EventStoreDB.sequence_number >= from_version,
+                )
+                .order_by(EventStoreDB.sequence_number)
+            )
 
             if to_version:
                 stmt = stmt.where(EventStoreDB.sequence_number <= to_version)
@@ -310,13 +320,16 @@ class EventStoreService:
         event_type: str,
         from_timestamp: datetime | None = None,
         to_timestamp: datetime | None = None,
-        limit: int = 1000
+        limit: int = 1000,
     ) -> list[DomainEvent]:
         """Holt Events nach Typ (für Read Model Rebuilds)"""
         async with self.session_factory() as session:
-            stmt = select(EventStoreDB).where(
-                EventStoreDB.event_type == event_type
-            ).order_by(EventStoreDB.timestamp).limit(limit)
+            stmt = (
+                select(EventStoreDB)
+                .where(EventStoreDB.event_type == event_type)
+                .order_by(EventStoreDB.timestamp)
+                .limit(limit)
+            )
 
             if from_timestamp:
                 stmt = stmt.where(EventStoreDB.timestamp >= from_timestamp)
@@ -329,15 +342,16 @@ class EventStoreService:
             return [e.to_domain_event() for e in events]
 
     async def get_all_events(
-        self,
-        from_position: int = 0,
-        batch_size: int = 1000
+        self, from_position: int = 0, batch_size: int = 1000
     ) -> list[DomainEvent]:
         """Holt alle Events ab einer Position (für globale Subscriptions)"""
         async with self.session_factory() as session:
-            stmt = select(EventStoreDB).where(
-                EventStoreDB.id > from_position
-            ).order_by(EventStoreDB.id).limit(batch_size)
+            stmt = (
+                select(EventStoreDB)
+                .where(EventStoreDB.id > from_position)
+                .order_by(EventStoreDB.id)
+                .limit(batch_size)
+            )
 
             result = await session.execute(stmt)
             events = result.scalars().all()
@@ -350,14 +364,12 @@ class EventStoreService:
         aggregate_type: str,
         version: int,
         state: dict[str, Any],
-        last_event_id: UUID
+        last_event_id: UUID,
     ) -> Snapshot:
         """Erstellt einen Snapshot für schnelle Wiederherstellung"""
         async with self.session_factory() as session:
             # Lösche alten Snapshot
-            stmt = delete(SnapshotStoreDB).where(
-                SnapshotStoreDB.aggregate_id == aggregate_id
-            )
+            stmt = delete(SnapshotStoreDB).where(SnapshotStoreDB.aggregate_id == aggregate_id)
             await session.execute(stmt)
 
             # Erstelle neuen Snapshot
@@ -366,13 +378,15 @@ class EventStoreService:
                 aggregate_type=aggregate_type,
                 version=version,
                 state=state,
-                last_event_id=last_event_id
+                last_event_id=last_event_id,
             )
 
             session.add(snapshot)
             await session.commit()
 
-            logger.info(f"Snapshot created for {aggregate_type}/{aggregate_id} at version {version}")
+            logger.info(
+                f"Snapshot created for {aggregate_type}/{aggregate_id} at version {version}"
+            )
 
             return Snapshot(
                 aggregate_id=snapshot.aggregate_id,
@@ -380,15 +394,13 @@ class EventStoreService:
                 version=snapshot.version,
                 state=snapshot.state,
                 timestamp=snapshot.timestamp,
-                last_event_id=snapshot.last_event_id
+                last_event_id=snapshot.last_event_id,
             )
 
     async def get_snapshot(self, aggregate_id: UUID) -> Snapshot | None:
         """Holt den aktuellsten Snapshot für ein Aggregate"""
         async with self.session_factory() as session:
-            stmt = select(SnapshotStoreDB).where(
-                SnapshotStoreDB.aggregate_id == aggregate_id
-            )
+            stmt = select(SnapshotStoreDB).where(SnapshotStoreDB.aggregate_id == aggregate_id)
             result = await session.execute(stmt)
             snapshot = result.scalar_one_or_none()
 
@@ -399,16 +411,11 @@ class EventStoreService:
                     version=snapshot.version,
                     state=snapshot.state,
                     timestamp=snapshot.timestamp,
-                    last_event_id=snapshot.last_event_id
+                    last_event_id=snapshot.last_event_id,
                 )
             return None
 
-    async def replay_aggregate(
-        self,
-        aggregate_id: UUID,
-        aggregate_type: str,
-        event_handler
-    ) -> Any:
+    async def replay_aggregate(self, aggregate_id: UUID, aggregate_type: str, event_handler) -> Any:
         """
         Replayt alle Events für ein Aggregate und baut Zustand auf
         """
@@ -471,6 +478,7 @@ class EventStoreService:
 
 # ==================== Event Subscription Service ====================
 
+
 class EventSubscriptionService:
     """
     Event Subscription Service für CQRS Read Models
@@ -502,8 +510,7 @@ class EventSubscriptionService:
 
             if not subscription:
                 subscription = EventSubscriptionDB(
-                    subscription_name=subscription_name,
-                    status="active"
+                    subscription_name=subscription_name, status="active"
                 )
                 session.add(subscription)
                 await session.commit()
@@ -512,8 +519,7 @@ class EventSubscriptionService:
 
             # Lade neue Events
             events = await self.event_store.get_all_events(
-                from_position=last_position,
-                batch_size=batch_size
+                from_position=last_position, batch_size=batch_size
             )
 
             if not events:
@@ -559,12 +565,14 @@ class EventSubscriptionService:
 
         # Setze Subscription zurück
         async with self.session_factory() as session:
-            stmt = update(EventSubscriptionDB).where(
-                EventSubscriptionDB.subscription_name == subscription_name
-            ).values(
-                last_processed_event_id=None,
-                last_processed_event_position=None,
-                status="rebuilding"
+            stmt = (
+                update(EventSubscriptionDB)
+                .where(EventSubscriptionDB.subscription_name == subscription_name)
+                .values(
+                    last_processed_event_id=None,
+                    last_processed_event_position=None,
+                    status="rebuilding",
+                )
             )
             await session.execute(stmt)
             await session.commit()
@@ -582,6 +590,7 @@ class EventSubscriptionService:
 
 
 # ==================== Aggregate Base Class ====================
+
 
 class AggregateRoot:
     """
@@ -611,9 +620,7 @@ class AggregateRoot:
             start_version = 1
 
         # Lade Events
-        events = await self.event_store.get_events_for_aggregate(
-            aggregate_id, start_version
-        )
+        events = await self.event_store.get_events_for_aggregate(aggregate_id, start_version)
 
         for event in events:
             self._apply_event(event)
@@ -632,7 +639,7 @@ class AggregateRoot:
             metadata=metadata or {},
             user_id=None,  # Wird später gesetzt
             timestamp=datetime.utcnow(),
-            sequence_number=self.version + 1
+            sequence_number=self.version + 1,
         )
 
         self._apply_event(event)
@@ -649,7 +656,7 @@ class AggregateRoot:
                 data=event.data,
                 user_id=user_id,
                 metadata=event.metadata,
-                expected_version=self.version - len(self._changes) + event.sequence_number - 1
+                expected_version=self.version - len(self._changes) + event.sequence_number - 1,
             )
             self.version = event.sequence_number
 
@@ -673,11 +680,14 @@ class AggregateRoot:
 
 # ==================== Exceptions ====================
 
+
 class ConcurrencyException(Exception):
     """Wird geworfen bei Optimistic Locking Konflikten"""
+
     pass
 
 
 class EventStoreException(Exception):
     """Base Exception für Event Store Fehler"""
+
     pass

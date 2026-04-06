@@ -12,13 +12,18 @@ from sqlalchemy import func, select
 
 from src.adapters.auth import require_role
 from src.core.entities.base import UserRole
-from src.core.events.event_store import EventStoreService, EventSubscriptionDB, EventSubscriptionService
+from src.core.events.event_store import (
+    EventStoreService,
+    EventSubscriptionDB,
+    EventSubscriptionService,
+)
 from src.read_models.projections import ProjectionManager
 
 router = APIRouter(prefix="/api/v1/events", tags=["events"])
 
 
 # ==================== Dependencies ====================
+
 
 async def get_event_store(request: Request) -> EventStoreService:
     """Dependency Injection für Event Store Service"""
@@ -42,6 +47,7 @@ async def get_projection_manager(request: Request) -> ProjectionManager:
 
 # ==================== Event Store Endpoints ====================
 
+
 @router.get("/aggregate/{aggregate_id}")
 async def get_aggregate_events(
     aggregate_id: UUID,
@@ -52,16 +58,12 @@ async def get_aggregate_events(
 ):
     """
     Holt alle Events eines Aggregates (für Audit-Zwecke)
-    
+
     **Audit-Zweck:** Vollständige Nachverfolgbarkeit aller Änderungen
     **Berechtigung:** Nur Auditor-Rolle
     """
-    events = await event_store.get_events_for_aggregate(
-        aggregate_id, 
-        from_version, 
-        to_version
-    )
-    
+    events = await event_store.get_events_for_aggregate(aggregate_id, from_version, to_version)
+
     return [
         {
             "event_id": str(e.event_id),
@@ -70,7 +72,7 @@ async def get_aggregate_events(
             "timestamp": e.timestamp.isoformat(),
             "user_id": str(e.user_id) if e.user_id else None,
             "data": e.data,
-            "current_hash": e.current_hash
+            "current_hash": e.current_hash,
         }
         for e in events
     ]
@@ -84,12 +86,12 @@ async def get_latest_aggregate_event(
 ):
     """Holt das neueste Event eines Aggregates"""
     events = await event_store.get_events_for_aggregate(aggregate_id)
-    
+
     if not events:
         return {"message": "No events found for this aggregate"}
-    
+
     latest = events[-1]
-    
+
     return {
         "event_id": str(latest.event_id),
         "event_type": latest.event_type,
@@ -97,7 +99,7 @@ async def get_latest_aggregate_event(
         "timestamp": latest.timestamp.isoformat(),
         "user_id": str(latest.user_id) if latest.user_id else None,
         "data": latest.data,
-        "current_hash": latest.current_hash
+        "current_hash": latest.current_hash,
     }
 
 
@@ -109,17 +111,21 @@ async def verify_aggregate_integrity(
 ):
     """
     Verifiziert die Integrität der Event-Kette (Merkle-Tree)
-    
+
     Prüft ob alle Hashes in der Event-Kette korrekt sind.
     Manipulationen werden erkannt.
     """
     is_valid = await event_store.verify_integrity(aggregate_id)
-    
+
     return {
         "aggregate_id": str(aggregate_id),
         "is_valid": is_valid,
         "verified_at": datetime.utcnow().isoformat(),
-        "message": "Event chain integrity verified" if is_valid else "Event chain integrity verification FAILED"
+        "message": (
+            "Event chain integrity verified"
+            if is_valid
+            else "Event chain integrity verification FAILED"
+        ),
     }
 
 
@@ -132,7 +138,7 @@ async def get_events_by_type(
 ):
     """Holt Events nach Typ (für Read Model Rebuilds)"""
     events = await event_store.get_events_by_type(event_type, limit=limit)
-    
+
     return [
         {
             "event_id": str(e.event_id),
@@ -140,13 +146,14 @@ async def get_events_by_type(
             "aggregate_type": e.aggregate_type,
             "sequence_number": e.sequence_number,
             "timestamp": e.timestamp.isoformat(),
-            "data": e.data
+            "data": e.data,
         }
         for e in events
     ]
 
 
 # ==================== Subscription Management ====================
+
 
 @router.get("/subscriptions")
 async def get_subscriptions(
@@ -158,7 +165,7 @@ async def get_subscriptions(
         stmt = select(EventSubscriptionDB)
         result = await session.execute(stmt)
         subscriptions = result.scalars().all()
-        
+
         return [
             {
                 "name": s.subscription_name,
@@ -167,7 +174,7 @@ async def get_subscriptions(
                 "status": s.status,
                 "error_message": s.error_message,
                 "retry_count": s.retry_count,
-                "updated_at": s.updated_at.isoformat() if s.updated_at else None
+                "updated_at": s.updated_at.isoformat() if s.updated_at else None,
             }
             for s in subscriptions
         ]
@@ -186,10 +193,10 @@ async def get_subscription_status(
         )
         result = await session.execute(stmt)
         subscription = result.scalar_one_or_none()
-        
+
         if not subscription:
             return {"error": f"Subscription '{subscription_name}' not found"}
-        
+
         return {
             "name": subscription.subscription_name,
             "last_processed_event": subscription.last_processed_event_id,
@@ -197,7 +204,7 @@ async def get_subscription_status(
             "status": subscription.status,
             "error_message": subscription.error_message,
             "retry_count": subscription.retry_count,
-            "updated_at": subscription.updated_at.isoformat() if subscription.updated_at else None
+            "updated_at": subscription.updated_at.isoformat() if subscription.updated_at else None,
         }
 
 
@@ -209,19 +216,19 @@ async def rebuild_read_model(
 ):
     """
     Rebuildet ein Read Model komplett neu
-    
+
     Verwendet für:
     - Schema-Änderungen
     - Datenkorrekturen
     - Performance-Optimierung
     """
     await projection_manager.subscription_service.rebuild_read_model(subscription_name)
-    
+
     return {
         "subscription_name": subscription_name,
         "status": "rebuilding",
         "message": "Read model rebuild initiated",
-        "started_at": datetime.utcnow().isoformat()
+        "started_at": datetime.utcnow().isoformat(),
     }
 
 
@@ -233,19 +240,21 @@ async def pause_subscription(
 ):
     """Pausiert eine Subscription (vorübergehend)"""
     from sqlalchemy import update
-    
+
     async with subscription_service.session_factory() as session:
-        stmt = update(EventSubscriptionDB).where(
-            EventSubscriptionDB.subscription_name == subscription_name
-        ).values(status="paused")
+        stmt = (
+            update(EventSubscriptionDB)
+            .where(EventSubscriptionDB.subscription_name == subscription_name)
+            .values(status="paused")
+        )
         await session.execute(stmt)
         await session.commit()
-        
+
     return {
         "subscription_name": subscription_name,
         "status": "paused",
         "message": "Subscription paused",
-        "paused_at": datetime.utcnow().isoformat()
+        "paused_at": datetime.utcnow().isoformat(),
     }
 
 
@@ -257,23 +266,26 @@ async def resume_subscription(
 ):
     """Setzt eine pausierte Subscription fort"""
     from sqlalchemy import update
-    
+
     async with subscription_service.session_factory() as session:
-        stmt = update(EventSubscriptionDB).where(
-            EventSubscriptionDB.subscription_name == subscription_name
-        ).values(status="active", error_message=None, retry_count=0)
+        stmt = (
+            update(EventSubscriptionDB)
+            .where(EventSubscriptionDB.subscription_name == subscription_name)
+            .values(status="active", error_message=None, retry_count=0)
+        )
         await session.execute(stmt)
         await session.commit()
-        
+
     return {
         "subscription_name": subscription_name,
         "status": "active",
         "message": "Subscription resumed",
-        "resumed_at": datetime.utcnow().isoformat()
+        "resumed_at": datetime.utcnow().isoformat(),
     }
 
 
 # ==================== Statistics ====================
+
 
 @router.get("/stats")
 async def get_event_store_stats(
@@ -283,44 +295,44 @@ async def get_event_store_stats(
     """Statistiken über den Event Store"""
     async with event_store.session_factory() as session:
         from src.core.events.event_store import EventStoreDB
-        
+
         # Gesamtzahl Events
         total_stmt = select(func.count()).select_from(EventStoreDB)
         total_result = await session.execute(total_stmt)
         total_events = total_result.scalar() or 0
-        
+
         # Events nach Typ
-        type_stmt = select(
-            EventStoreDB.event_type,
-            func.count().label('count')
-        ).group_by(EventStoreDB.event_type)
+        type_stmt = select(EventStoreDB.event_type, func.count().label("count")).group_by(
+            EventStoreDB.event_type
+        )
         type_result = await session.execute(type_stmt)
         events_by_type = {row.event_type: row.count for row in type_result}
-        
+
         # Events nach Aggregat-Typ
-        agg_stmt = select(
-            EventStoreDB.aggregate_type,
-            func.count().label('count')
-        ).group_by(EventStoreDB.aggregate_type)
+        agg_stmt = select(EventStoreDB.aggregate_type, func.count().label("count")).group_by(
+            EventStoreDB.aggregate_type
+        )
         agg_result = await session.execute(agg_stmt)
         events_by_aggregate = {row.aggregate_type: row.count for row in agg_result}
-        
+
         # Events pro Tag (letzte 30 Tage)
-        day_stmt = select(
-            func.date(EventStoreDB.timestamp).label('date'),
-            func.count().label('count')
-        ).where(
-            EventStoreDB.timestamp >= datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        ).group_by(func.date(EventStoreDB.timestamp))
+        day_stmt = (
+            select(func.date(EventStoreDB.timestamp).label("date"), func.count().label("count"))
+            .where(
+                EventStoreDB.timestamp
+                >= datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            )
+            .group_by(func.date(EventStoreDB.timestamp))
+        )
         day_result = await session.execute(day_stmt)
         events_per_day = {str(row.date): row.count for row in day_result}
-        
+
         return {
             "total_events": total_events,
             "events_by_type": events_by_type,
             "events_by_aggregate": events_by_aggregate,
             "events_last_30_days": events_per_day,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
 
@@ -331,36 +343,37 @@ async def get_aggregate_stats(
 ):
     """Statistiken über Aggregate im Event Store"""
     async with event_store.session_factory() as session:
-        from src.core.events.event_store import EventStoreDB
         from sqlalchemy import distinct
-        
+
+        from src.core.events.event_store import EventStoreDB
+
         # Anzahl einzigartiger Aggregate
         agg_count_stmt = select(func.count(distinct(EventStoreDB.aggregate_id)))
         agg_count_result = await session.execute(agg_count_stmt)
         total_aggregates = agg_count_result.scalar() or 0
-        
+
         # Aggregate nach Typ
         agg_type_stmt = select(
             EventStoreDB.aggregate_type,
-            func.count(distinct(EventStoreDB.aggregate_id)).label('count')
+            func.count(distinct(EventStoreDB.aggregate_id)).label("count"),
         ).group_by(EventStoreDB.aggregate_type)
         agg_type_result = await session.execute(agg_type_stmt)
         aggregates_by_type = {row.aggregate_type: row.count for row in agg_type_result}
-        
+
         # Durchschnittliche Events pro Aggregate
         avg_events_stmt = select(
-            EventStoreDB.aggregate_type,
-            func.avg(func.count()).label('avg_events')
+            EventStoreDB.aggregate_type, func.avg(func.count()).label("avg_events")
         ).group_by(EventStoreDB.aggregate_type)
-        
+
         return {
             "total_aggregates": total_aggregates,
             "aggregates_by_type": aggregates_by_type,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
 
 # ==================== Snapshot Management ====================
+
 
 @router.get("/snapshots/{aggregate_id}")
 async def get_aggregate_snapshot(
@@ -370,17 +383,17 @@ async def get_aggregate_snapshot(
 ):
     """Holt den aktuellen Snapshot eines Aggregates"""
     snapshot = await event_store.get_snapshot(aggregate_id)
-    
+
     if not snapshot:
         return {"message": "No snapshot found for this aggregate"}
-    
+
     return {
         "aggregate_id": str(snapshot.aggregate_id),
         "aggregate_type": snapshot.aggregate_type,
         "version": snapshot.version,
         "state": snapshot.state,
         "last_event_id": str(snapshot.last_event_id),
-        "timestamp": snapshot.timestamp.isoformat()
+        "timestamp": snapshot.timestamp.isoformat(),
     }
 
 
@@ -395,32 +408,35 @@ async def create_aggregate_snapshot(
     """Erzwingt die Erstellung eines Snapshots für ein Aggregate"""
     # Lade letztes Event
     events = await event_store.get_events_for_aggregate(aggregate_id, version, version)
-    
+
     if not events:
         return {"error": "No events found for this version"}
-    
+
     last_event = events[0]
-    
+
     # Replay Aggregate um aktuellen State zu erhalten
-    state = await event_store.replay_aggregate(aggregate_id, aggregate_type, lambda e, s: {**s, **e.data})
-    
+    state = await event_store.replay_aggregate(
+        aggregate_id, aggregate_type, lambda e, s: {**s, **e.data}
+    )
+
     snapshot = await event_store.create_snapshot(
         aggregate_id=aggregate_id,
         aggregate_type=aggregate_type,
         version=version,
         state=state,
-        last_event_id=last_event.event_id
+        last_event_id=last_event.event_id,
     )
-    
+
     return {
         "aggregate_id": str(snapshot.aggregate_id),
         "version": snapshot.version,
         "created_at": snapshot.timestamp.isoformat(),
-        "message": "Snapshot created successfully"
+        "message": "Snapshot created successfully",
     }
 
 
 # ==================== Health Check ====================
+
 
 @router.get("/health")
 async def event_store_health(
@@ -430,23 +446,24 @@ async def event_store_health(
     try:
         async with event_store.session_factory() as session:
             from sqlalchemy import text
+
             result = await session.execute(text("SELECT 1"))
             if result.scalar() == 1:
                 return {
                     "status": "healthy",
                     "event_store": "operational",
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.utcnow().isoformat(),
                 }
     except Exception as e:
         return {
             "status": "unhealthy",
             "event_store": "error",
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
-    
+
     return {
         "status": "healthy",
         "event_store": "operational",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
     }

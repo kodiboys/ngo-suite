@@ -27,7 +27,7 @@ async def test_donation_receipt_generation():
         created_at=datetime(2024, 1, 15),
         payment_intent_id="pi_123",
         donor_name_encrypted="Max Mustermann",
-        donor_email_pseudonym="hash@example.com"
+        donor_email_pseudonym="hash@example.com",
     )
     mock_project = Mock(name="Testprojekt")
 
@@ -36,13 +36,13 @@ async def test_donation_receipt_generation():
 
     generator = DonationReceiptGenerator(mock_session)
 
-    with patch.object(generator, '_generate_qr_code', return_value=Mock()):
+    with patch.object(generator, "_generate_qr_code", return_value=Mock()):
         pdf_bytes = await generator.generate_donation_receipt(uuid4())
 
         assert isinstance(pdf_bytes, bytes)
         assert len(pdf_bytes) > 0
         # PDF Header
-        assert pdf_bytes[:4] == b'%PDF'
+        assert pdf_bytes[:4] == b"%PDF"
 
 
 @pytest.mark.asyncio
@@ -63,12 +63,16 @@ async def test_balance_sheet_generation():
 
     generator = SKR42BalanceSheetGenerator(mock_session)
 
-    with patch.object(generator, '_get_balance_data', return_value={
-        'active': [{'account_number': '10000', 'account_name': 'Kasse', 'balance': 5000}],
-        'passive': [{'account_number': '40000', 'account_name': 'Spenden', 'balance': 5000}],
-        'donations_total': 5000,
-        'project_cost_ratio': 75.0
-    }):
+    with patch.object(
+        generator,
+        "_get_balance_data",
+        return_value={
+            "active": [{"account_number": "10000", "account_name": "Kasse", "balance": 5000}],
+            "passive": [{"account_number": "40000", "account_name": "Spenden", "balance": 5000}],
+            "donations_total": 5000,
+            "project_cost_ratio": 75.0,
+        },
+    ):
         pdf_bytes = await generator.generate_balance_sheet()
 
         assert isinstance(pdf_bytes, bytes)
@@ -86,7 +90,7 @@ async def test_datev_export():
             created_at=datetime(2024, 1, 15),
             payment_intent_id="pi_123",
             skr42_account_id="40000",
-            cost_center="PROJ_001"
+            cost_center="PROJ_001",
         )
     ]
     mock_result = AsyncMock()
@@ -101,7 +105,7 @@ async def test_datev_export():
     csv_bytes = await service.export_datev_csv(start_date, end_date)
 
     assert isinstance(csv_bytes, bytes)
-    csv_content = csv_bytes.decode('utf-8-sig')
+    csv_content = csv_bytes.decode("utf-8-sig")
     assert "Umsatz (ohne Soll/Haben-Kz)" in csv_content
     assert "100,00" in csv_content
 
@@ -112,16 +116,14 @@ async def test_excel_export():
 
     service = ExportService(None)
 
-    test_data = [
-        {"Name": "Test", "Betrag": 100.00, "Datum": "2024-01-15"}
-    ]
+    test_data = [{"Name": "Test", "Betrag": 100.00, "Datum": "2024-01-15"}]
 
     excel_bytes = await service.export_to_excel(test_data, "Test Sheet")
 
     assert isinstance(excel_bytes, bytes)
     assert len(excel_bytes) > 0
     # Excel Magic Number
-    assert excel_bytes[:4] == b'PK\x03\x04'
+    assert excel_bytes[:4] == b"PK\x03\x04"
 
 
 @pytest.mark.asyncio
@@ -142,10 +144,7 @@ def test_skr42_account_validation():
     from src.core.entities.base import SKR42Account
 
     account = SKR42Account(
-        account_number="40000",
-        account_name="Spenden",
-        account_type="ERTRAEGE",
-        current_hash="test"
+        account_number="40000", account_name="Spenden", account_type="ERTRAEGE", current_hash="test"
     )
 
     assert account.account_number == "40000"
@@ -155,6 +154,7 @@ def test_skr42_account_validation():
 
 
 # ==================== Performance Tests ====================
+
 
 @pytest.mark.benchmark
 def test_pdf_generation_benchmark(benchmark):
@@ -169,7 +169,7 @@ def test_pdf_generation_benchmark(benchmark):
 
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=A4)
-        story = [Paragraph("Test", getSampleStyleSheet()['Normal'])]
+        story = [Paragraph("Test", getSampleStyleSheet()["Normal"])]
         doc.build(story)
         return buffer.getvalue()
 

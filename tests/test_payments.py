@@ -20,11 +20,12 @@ from src.services.payment_service import PaymentService
 
 # ==================== Unit Tests ====================
 
+
 @pytest.mark.asyncio
 async def test_stripe_create_payment():
     """Test Stripe Payment Intent Creation"""
 
-    with patch('stripe.PaymentIntent.create') as mock_create:
+    with patch("stripe.PaymentIntent.create") as mock_create:
         # Mock Stripe Response
         mock_intent = Mock()
         mock_intent.id = "pi_123456"
@@ -36,9 +37,7 @@ async def test_stripe_create_payment():
         mock_create.return_value = mock_intent
 
         provider = StripeProvider(
-            api_key="sk_test_xxx",
-            webhook_secret="whsec_xxx",
-            redis_client=None
+            api_key="sk_test_xxx", webhook_secret="whsec_xxx", redis_client=None
         )
 
         request = CreatePaymentRequest(
@@ -46,7 +45,7 @@ async def test_stripe_create_payment():
             currency="EUR",
             payment_method=PaymentMethod.CREDIT_CARD,
             donor_email="test@example.com",
-            project_id=uuid4()
+            project_id=uuid4(),
         )
 
         result = await provider.create_payment_intent(request)
@@ -56,6 +55,7 @@ async def test_stripe_create_payment():
         assert result.provider == PaymentProvider.STRIPE
         assert result.status == PaymentStatus.PENDING
 
+
 @pytest.mark.asyncio
 async def test_payment_fallback():
     """Test automatischer Provider Fallback"""
@@ -64,23 +64,30 @@ async def test_payment_fallback():
     service = Mock()
 
     # Simuliere Stripe Fehler, dann PayPal Success
-    service.create_payment_intent = AsyncMock(side_effect=[
-        Exception("Stripe down"),
-        PaymentIntent(
-            id="pay_123",
-            provider=PaymentProvider.PAYPAL,
-            amount=Decimal("50.00"),
-            currency="EUR",
-            status=PaymentStatus.PENDING
-        )
-    ])
+    service.create_payment_intent = AsyncMock(
+        side_effect=[
+            Exception("Stripe down"),
+            PaymentIntent(
+                id="pay_123",
+                provider=PaymentProvider.PAYPAL,
+                amount=Decimal("50.00"),
+                currency="EUR",
+                status=PaymentStatus.PENDING,
+            ),
+        ]
+    )
 
     # Test Fallback
-    with patch('src.services.payment_service.PaymentService._create_payment_internal', service.create_payment_intent):
+    with patch(
+        "src.services.payment_service.PaymentService._create_payment_internal",
+        service.create_payment_intent,
+    ):
         result = await service.create_payment_intent(Mock())
         assert result.provider == PaymentProvider.PAYPAL
 
+
 # ==================== Webhook Tests ====================
+
 
 @pytest.mark.asyncio
 async def test_stripe_webhook_success():
@@ -90,16 +97,11 @@ async def test_stripe_webhook_success():
         "id": "evt_123",
         "type": "payment_intent.succeeded",
         "data": {
-            "object": {
-                "id": "pi_123",
-                "amount": 10000,
-                "currency": "eur",
-                "status": "succeeded"
-            }
-        }
+            "object": {"id": "pi_123", "amount": 10000, "currency": "eur", "status": "succeeded"}
+        },
     }
 
-    with patch('stripe.Webhook.construct_event') as mock_webhook:
+    with patch("stripe.Webhook.construct_event") as mock_webhook:
         mock_event = Mock()
         mock_event.type = "payment_intent.succeeded"
         mock_event.data.object.id = "pi_123"
@@ -109,15 +111,14 @@ async def test_stripe_webhook_success():
         mock_webhook.return_value = mock_event
 
         provider = StripeProvider("sk_test", "whsec_test", None)
-        result = await provider.handle_webhook(
-            b'{}',
-            "test_signature"
-        )
+        result = await provider.handle_webhook(b"{}", "test_signature")
 
         assert result.event_type == "payment_intent.succeeded"
         assert result.payment_intent_id == "pi_123"
 
+
 # ==================== Integration Tests ====================
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
@@ -133,11 +134,11 @@ async def test_full_payment_flow(db_session, redis_client):
         currency="EUR",
         payment_method=PaymentMethod.CREDIT_CARD,
         donor_email="integration@test.com",
-        project_id=uuid4()
+        project_id=uuid4(),
     )
 
     # Mock Provider für Integration Test
-    with patch.object(service, 'providers') as mock_providers:
+    with patch.object(service, "providers") as mock_providers:
         mock_provider = AsyncMock()
         mock_provider.create_payment_intent.return_value = PaymentIntent(
             id="pi_integration",
@@ -145,19 +146,18 @@ async def test_full_payment_flow(db_session, redis_client):
             amount=Decimal("25.00"),
             currency="EUR",
             status=PaymentStatus.PENDING,
-            client_secret="secret"
+            client_secret="secret",
         )
         mock_providers.__getitem__.return_value = mock_provider
 
         # Create Donation
         result = await service.create_donation_with_payment(
-            request=request,
-            user_id=uuid4(),
-            ip_address="127.0.0.1"
+            request=request, user_id=uuid4(), ip_address="127.0.0.1"
         )
 
         assert "donation_id" in result
         assert result["provider"] == "stripe"
+
 
 # ==================== Property-Based Tests ====================
 
@@ -165,10 +165,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 
-@given(
-    amount=st.decimals(min_value=0.01, max_value=100000, places=2),
-    email=st.emails()
-)
+@given(amount=st.decimals(min_value=0.01, max_value=100000, places=2), email=st.emails())
 def test_payment_amount_validation(amount, email):
     """Test: Alle Beträge werden korrekt validiert"""
     try:
@@ -177,14 +174,16 @@ def test_payment_amount_validation(amount, email):
             currency="EUR",
             payment_method=PaymentMethod.CREDIT_CARD,
             donor_email=email,
-            project_id=uuid4()
+            project_id=uuid4(),
         )
         assert request.amount > 0
     except Exception as e:
         # Negative Beträge sollten fehlschlagen
         assert amount <= 0 or "positive" in str(e).lower()
 
+
 # ==================== Performance Tests ====================
+
 
 @pytest.mark.benchmark
 def test_payment_intent_serialization(benchmark):
@@ -195,12 +194,13 @@ def test_payment_intent_serialization(benchmark):
         provider=PaymentProvider.STRIPE,
         amount=Decimal("100.00"),
         currency="EUR",
-        status=PaymentStatus.PENDING
+        status=PaymentStatus.PENDING,
     )
 
     def serialize():
         import json
         from dataclasses import asdict
+
         return json.dumps(asdict(intent), default=str)
 
     result = benchmark(serialize)

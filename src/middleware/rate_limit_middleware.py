@@ -29,12 +29,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     Unterstützt verschiedene Strategien pro Endpoint
     """
 
-    def __init__(
-        self,
-        app: FastAPI,
-        redis_client,
-        rules: dict[str, RateLimitRule] | None = None
-    ):
+    def __init__(self, app: FastAPI, redis_client, rules: dict[str, RateLimitRule] | None = None):
         super().__init__(app)
         self.redis_client = redis_client
 
@@ -43,7 +38,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             RateLimitStrategy.SLIDING_WINDOW: SlidingWindowRateLimiter(redis_client),
             RateLimitStrategy.TOKEN_BUCKET: TokenBucketRateLimiter(redis_client),
             RateLimitStrategy.FIXED_WINDOW: FixedWindowRateLimiter(redis_client),
-            RateLimitStrategy.LEAKY_BUCKET: LeakyBucketRateLimiter(redis_client)
+            RateLimitStrategy.LEAKY_BUCKET: LeakyBucketRateLimiter(redis_client),
         }
 
         # Default Rules
@@ -60,9 +55,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 strategy=RateLimitStrategy.SLIDING_WINDOW,
                 limit=10,
                 window_seconds=60,
-                burst_limit=3
+                burst_limit=3,
             ),
-
             # Authentifizierte Endpunkte (großzügiger)
             "auth_read": RateLimitRule(
                 path_pattern="/api/v1/.*",
@@ -71,7 +65,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 strategy=RateLimitStrategy.TOKEN_BUCKET,
                 limit=500,
                 window_seconds=60,
-                burst_limit=50
+                burst_limit=50,
             ),
             "auth_write": RateLimitRule(
                 path_pattern="/api/v1/.*",
@@ -79,9 +73,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 scope=RateLimitScope.USER,
                 strategy=RateLimitStrategy.SLIDING_WINDOW,
                 limit=100,
-                window_seconds=60
+                window_seconds=60,
             ),
-
             # Login Endpunkte (sehr strikt gegen Brute Force)
             "login": RateLimitRule(
                 path_pattern="/api/v1/auth/login",
@@ -90,9 +83,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 strategy=RateLimitStrategy.FIXED_WINDOW,
                 limit=5,
                 window_seconds=60,
-                block_duration_seconds=300  # 5 Minuten Block
+                block_duration_seconds=300,  # 5 Minuten Block
             ),
-
             # Admin Endpunkte (normal)
             "admin": RateLimitRule(
                 path_pattern="/api/v1/admin/.*",
@@ -100,9 +92,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 scope=RateLimitScope.USER,
                 strategy=RateLimitStrategy.SLIDING_WINDOW,
                 limit=200,
-                window_seconds=60
+                window_seconds=60,
             ),
-
             # Export Endpunkte (limitieren wegen Ressourcen)
             "export": RateLimitRule(
                 path_pattern="/api/v1/export/.*",
@@ -111,9 +102,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 strategy=RateLimitStrategy.TOKEN_BUCKET,
                 limit=20,
                 window_seconds=300,  # 5 Minuten
-                burst_limit=5
+                burst_limit=5,
             ),
-
             # Webhooks (großzügig, aber mit Burst Protection)
             "webhook": RateLimitRule(
                 path_pattern="/api/v1/.*/webhook/.*",
@@ -121,9 +111,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 scope=RateLimitScope.IP,
                 strategy=RateLimitStrategy.LEAKY_BUCKET,
                 limit=1000,
-                window_seconds=60
+                window_seconds=60,
             ),
-
             # Global Default
             "global_default": RateLimitRule(
                 path_pattern=".*",
@@ -131,8 +120,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 scope=RateLimitScope.IP,
                 strategy=RateLimitStrategy.SLIDING_WINDOW,
                 limit=1000,
-                window_seconds=60
-            )
+                window_seconds=60,
+            ),
         }
 
     async def dispatch(self, request: Request, call_next):
@@ -159,7 +148,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             limit=rule.limit,
             window_seconds=rule.window_seconds,
             block_duration_seconds=rule.block_duration_seconds,
-            identifier=key
+            identifier=key,
         )
 
         # Füge Burst Protection hinzu
@@ -169,7 +158,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 strategy=RateLimitStrategy.TOKEN_BUCKET,
                 limit=rule.burst_limit,
                 window_seconds=rule.window_seconds,
-                identifier=f"{key}:burst"
+                identifier=f"{key}:burst",
             )
             burst_result = await self.limiters[RateLimitStrategy.TOKEN_BUCKET].is_allowed(
                 f"{key}:burst", burst_config
@@ -221,12 +210,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return real_ip
         return request.client.host if request.client else "unknown"
 
-    async def _generate_key(
-        self,
-        request: Request,
-        rule: RateLimitRule,
-        client_ip: str
-    ) -> str:
+    async def _generate_key(self, request: Request, rule: RateLimitRule, client_ip: str) -> str:
         """Generiert eindeutigen Key für Rate Limiting"""
         parts = []
 
@@ -256,9 +240,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return ":".join(parts)
 
     async def _rate_limit_response(
-        self,
-        result: RateLimitResult,
-        rule: RateLimitRule
+        self, result: RateLimitResult, rule: RateLimitRule
     ) -> JSONResponse:
         """Erstellt Rate Limit Error Response"""
         return JSONResponse(
@@ -269,13 +251,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 "retry_after": result.retry_after,
                 "limit": rule.limit,
                 "remaining": 0,
-                "reset_at": result.reset_at.isoformat()
+                "reset_at": result.reset_at.isoformat(),
             },
-            headers=result.to_headers()
+            headers=result.to_headers(),
         )
 
 
 # ==================== Per-User Rate Limiter ====================
+
 
 class PerUserRateLimiter:
     """
@@ -288,11 +271,7 @@ class PerUserRateLimiter:
         self.base_limiter = SlidingWindowRateLimiter(redis_client)
 
     async def check_user_limit(
-        self,
-        user_id: str,
-        user_role: str,
-        endpoint: str,
-        method: str
+        self, user_id: str, user_role: str, endpoint: str, method: str
     ) -> RateLimitResult:
         """Prüft Rate Limit basierend auf User-Rolle"""
 
@@ -302,7 +281,7 @@ class PerUserRateLimiter:
             "accountant": {"limit": 1000, "window": 60},
             "project_manager": {"limit": 500, "window": 60},
             "donor": {"limit": 100, "window": 60},
-            "anonymous": {"limit": 20, "window": 60}
+            "anonymous": {"limit": 20, "window": 60},
         }
 
         limits = role_limits.get(user_role, role_limits["anonymous"])
@@ -312,16 +291,14 @@ class PerUserRateLimiter:
             strategy=RateLimitStrategy.SLIDING_WINDOW,
             limit=limits["limit"],
             window_seconds=limits["window"],
-            identifier=f"user:{user_id}:{endpoint}"
+            identifier=f"user:{user_id}:{endpoint}",
         )
 
-        return await self.base_limiter.is_allowed(
-            f"user:{user_id}:{endpoint}",
-            config
-        )
+        return await self.base_limiter.is_allowed(f"user:{user_id}:{endpoint}", config)
 
 
 # ==================== API Key Rate Limiter ====================
+
 
 class APIKeyRateLimiter:
     """
@@ -336,14 +313,10 @@ class APIKeyRateLimiter:
             "paypal": {"limit": 5000, "window": 60},
             "wordpress": {"limit": 1000, "window": 60},
             "betterplace": {"limit": 100, "window": 60},
-            "default": {"limit": 100, "window": 60}
+            "default": {"limit": 100, "window": 60},
         }
 
-    async def check_api_key(
-        self,
-        api_key: str,
-        partner: str
-    ) -> RateLimitResult:
+    async def check_api_key(self, api_key: str, partner: str) -> RateLimitResult:
         """Prüft Rate Limit für API Key"""
 
         limits = self.limiters.get(partner, self.limiters["default"])
@@ -353,7 +326,7 @@ class APIKeyRateLimiter:
             strategy=RateLimitStrategy.TOKEN_BUCKET,
             limit=limits["limit"],
             window_seconds=limits["window"],
-            identifier=f"apikey:{partner}"
+            identifier=f"apikey:{partner}",
         )
 
         limiter = TokenBucketRateLimiter(self.redis)

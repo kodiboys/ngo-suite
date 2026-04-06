@@ -11,46 +11,52 @@ from pydantic import BaseModel, Field
 
 # ==================== Enums ====================
 
+
 class RateLimitStrategy(str, Enum):
     """Rate Limiting Strategien"""
-    FIXED_WINDOW = "fixed_window"      # Feste Zeitfenster
+
+    FIXED_WINDOW = "fixed_window"  # Feste Zeitfenster
     SLIDING_WINDOW = "sliding_window"  # Gleitendes Zeitfenster
-    TOKEN_BUCKET = "token_bucket"      # Token Bucket Algorithmus
-    LEAKY_BUCKET = "leaky_bucket"      # Leaky Bucket Algorithmus
+    TOKEN_BUCKET = "token_bucket"  # Token Bucket Algorithmus
+    LEAKY_BUCKET = "leaky_bucket"  # Leaky Bucket Algorithmus
 
 
 class CircuitBreakerState(str, Enum):
     """Circuit Breaker Zustände"""
-    CLOSED = "closed"          # Normalbetrieb
-    OPEN = "open"              # Service ausgefallen
-    HALF_OPEN = "half_open"    # Testbetrieb nach Ausfall
+
+    CLOSED = "closed"  # Normalbetrieb
+    OPEN = "open"  # Service ausgefallen
+    HALF_OPEN = "half_open"  # Testbetrieb nach Ausfall
     FORCED_OPEN = "forced_open"  # Manuell geöffnet
 
 
 class RateLimitScope(str, Enum):
     """Rate Limiting Scope"""
-    GLOBAL = "global"          # Global für alle
-    USER = "user"              # Pro Benutzer
-    IP = "ip"                  # Pro IP-Adresse
-    API_KEY = "api_key"        # Pro API-Key
-    ENDPOINT = "endpoint"      # Pro Endpoint
-    TENANT = "tenant"          # Pro Tenant (Multi-Tenant)
+
+    GLOBAL = "global"  # Global für alle
+    USER = "user"  # Pro Benutzer
+    IP = "ip"  # Pro IP-Adresse
+    API_KEY = "api_key"  # Pro API-Key
+    ENDPOINT = "endpoint"  # Pro Endpoint
+    TENANT = "tenant"  # Pro Tenant (Multi-Tenant)
 
 
 # ==================== Data Models ====================
 
+
 @dataclass
 class RateLimitConfig:
     """Rate Limiting Konfiguration"""
+
     scope: RateLimitScope
     strategy: RateLimitStrategy
-    limit: int                    # Maximale Anfragen
-    window_seconds: int           # Zeitfenster in Sekunden
+    limit: int  # Maximale Anfragen
+    window_seconds: int  # Zeitfenster in Sekunden
     block_duration_seconds: int = 0  # Blockierdauer bei Überschreitung
     identifier: str | None = None  # Spezifischer Identifier (z.B. Endpoint)
 
     # Token Bucket spezifisch
-    refill_rate: float | None = None   # Tokens pro Sekunde
+    refill_rate: float | None = None  # Tokens pro Sekunde
     initial_tokens: int | None = None  # Initiale Tokens
 
     def __post_init__(self):
@@ -64,6 +70,7 @@ class RateLimitConfig:
 @dataclass
 class RateLimitResult:
     """Ergebnis einer Rate Limit Prüfung"""
+
     allowed: bool
     remaining: int
     reset_at: datetime
@@ -76,7 +83,7 @@ class RateLimitResult:
         headers = {
             "X-RateLimit-Limit": str(self.limit),
             "X-RateLimit-Remaining": str(self.remaining),
-            "X-RateLimit-Reset": str(int(self.reset_at.timestamp()))
+            "X-RateLimit-Reset": str(int(self.reset_at.timestamp())),
         }
         if self.retry_after:
             headers["Retry-After"] = str(self.retry_after)
@@ -86,11 +93,12 @@ class RateLimitResult:
 @dataclass
 class CircuitBreakerConfig:
     """Circuit Breaker Konfiguration"""
+
     name: str
-    failure_threshold: int = 5        # Fehlerschwelle
-    success_threshold: int = 2        # Erfolgsschwelle (Half-Open)
-    timeout_seconds: int = 60         # Timeout für Open State
-    half_open_max_calls: int = 3      # Maximale Calls in Half-Open
+    failure_threshold: int = 5  # Fehlerschwelle
+    success_threshold: int = 2  # Erfolgsschwelle (Half-Open)
+    timeout_seconds: int = 60  # Timeout für Open State
+    half_open_max_calls: int = 3  # Maximale Calls in Half-Open
     rolling_window_seconds: int = 60  # Rolling Window für Fehlerzählung
     exclude_exceptions: list[str] = field(default_factory=list)  # Ignorierte Exceptions
 
@@ -98,6 +106,7 @@ class CircuitBreakerConfig:
 @dataclass
 class CircuitBreakerStatus:
     """Circuit Breaker Status"""
+
     state: CircuitBreakerState
     failure_count: int
     success_count: int
@@ -110,6 +119,7 @@ class CircuitBreakerStatus:
 
 class RateLimitRule(BaseModel):
     """API Rate Limit Rule für Konfiguration"""
+
     path_pattern: str = Field(..., description="URL Pattern (z.B. /api/v1/donations)")
     method: str = Field("GET", description="HTTP Method")
     scope: RateLimitScope = RateLimitScope.IP
@@ -127,6 +137,7 @@ class RateLimitRule(BaseModel):
 
 class CircuitBreakerRule(BaseModel):
     """Circuit Breaker Rule für externe Services"""
+
     service_name: str
     failure_threshold: int = Field(5, ge=1, le=100)
     success_threshold: int = Field(2, ge=1, le=10)
@@ -137,14 +148,11 @@ class CircuitBreakerRule(BaseModel):
 
 # ==================== Rate Limiter Interface ====================
 
+
 class RateLimiterInterface:
     """Interface für Rate Limiter Implementierungen"""
 
-    async def is_allowed(
-        self,
-        key: str,
-        config: RateLimitConfig
-    ) -> RateLimitResult:
+    async def is_allowed(self, key: str, config: RateLimitConfig) -> RateLimitResult:
         """Prüft ob Anfrage erlaubt ist"""
         raise NotImplementedError
 
@@ -159,16 +167,11 @@ class RateLimiterInterface:
 
 # ==================== Circuit Breaker Interface ====================
 
+
 class CircuitBreakerInterface:
     """Interface für Circuit Breaker Implementierungen"""
 
-    async def call(
-        self,
-        func,
-        *args,
-        fallback: callable | None = None,
-        **kwargs
-    ) -> Any:
+    async def call(self, func, *args, fallback: callable | None = None, **kwargs) -> Any:
         """Führt Funktion mit Circuit Breaker Schutz aus"""
         raise NotImplementedError
 

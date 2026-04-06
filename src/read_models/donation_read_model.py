@@ -29,6 +29,7 @@ class DonationReadModel(Base):
     Denormalisierte Read Model Tabelle für Spenden
     Optimiert für schnelle Leseoperationen und Reporting
     """
+
     __tablename__ = "donations_read_model"
     __table_args__ = (
         Index("idx_donation_amount", "amount"),
@@ -91,25 +92,23 @@ class DonationReadModelRepository:
             return result.scalar_one_or_none()
 
     async def get_by_project(
-        self,
-        project_id: UUID,
-        limit: int = 100,
-        offset: int = 0
+        self, project_id: UUID, limit: int = 100, offset: int = 0
     ) -> list[DonationReadModel]:
         """Holt alle Spenden eines Projekts"""
         async with self.session_factory() as session:
-            stmt = select(DonationReadModel).where(
-                DonationReadModel.project_id == project_id
-            ).order_by(DonationReadModel.created_at.desc()).offset(offset).limit(limit)
+            stmt = (
+                select(DonationReadModel)
+                .where(DonationReadModel.project_id == project_id)
+                .order_by(DonationReadModel.created_at.desc())
+                .offset(offset)
+                .limit(limit)
+            )
 
             result = await session.execute(stmt)
             return result.scalars().all()
 
     async def get_donations_by_date_range(
-        self,
-        start_date: datetime,
-        end_date: datetime,
-        project_id: UUID | None = None
+        self, start_date: datetime, end_date: datetime, project_id: UUID | None = None
     ) -> list[DonationReadModel]:
         """Holt Spenden im Zeitraum"""
         async with self.session_factory() as session:
@@ -126,27 +125,23 @@ class DonationReadModelRepository:
             return result.scalars().all()
 
     async def get_donation_stats(
-        self,
-        project_id: UUID | None = None,
-        year: int | None = None
+        self, project_id: UUID | None = None, year: int | None = None
     ) -> dict[str, Any]:
         """Holt aggregierte Statistiken"""
         async with self.session_factory() as session:
             stmt = select(
-                func.sum(DonationReadModel.amount).label('total_amount'),
-                func.count(DonationReadModel.id).label('total_count'),
-                func.avg(DonationReadModel.amount).label('avg_amount'),
-                func.max(DonationReadModel.amount).label('max_amount'),
-                func.min(DonationReadModel.amount).label('min_amount')
-            ).where(DonationReadModel.status == 'succeeded')
+                func.sum(DonationReadModel.amount).label("total_amount"),
+                func.count(DonationReadModel.id).label("total_count"),
+                func.avg(DonationReadModel.amount).label("avg_amount"),
+                func.max(DonationReadModel.amount).label("max_amount"),
+                func.min(DonationReadModel.amount).label("min_amount"),
+            ).where(DonationReadModel.status == "succeeded")
 
             if project_id:
                 stmt = stmt.where(DonationReadModel.project_id == project_id)
 
             if year:
-                stmt = stmt.where(
-                    func.extract('year', DonationReadModel.created_at) == year
-                )
+                stmt = stmt.where(func.extract("year", DonationReadModel.created_at) == year)
 
             result = await session.execute(stmt)
             row = result.one()
@@ -156,15 +151,17 @@ class DonationReadModelRepository:
                 "total_count": row.total_count or 0,
                 "average_amount": float(row.avg_amount or 0),
                 "max_amount": float(row.max_amount or 0),
-                "min_amount": float(row.min_amount or 0)
+                "min_amount": float(row.min_amount or 0),
             }
 
     async def get_donor_history(self, donor_email_hash: str) -> list[DonationReadModel]:
         """Holt Spenden-History eines Spenders"""
         async with self.session_factory() as session:
-            stmt = select(DonationReadModel).where(
-                DonationReadModel.donor_email_hash == donor_email_hash
-            ).order_by(DonationReadModel.created_at.desc())
+            stmt = (
+                select(DonationReadModel)
+                .where(DonationReadModel.donor_email_hash == donor_email_hash)
+                .order_by(DonationReadModel.created_at.desc())
+            )
 
             result = await session.execute(stmt)
             return result.scalars().all()
@@ -172,20 +169,25 @@ class DonationReadModelRepository:
     async def get_daily_donations(self, days: int = 30) -> list[dict[str, Any]]:
         """Holt tägliche Spenden für Chart"""
         async with self.session_factory() as session:
-            stmt = select(
-                func.date(DonationReadModel.created_at).label('date'),
-                func.sum(DonationReadModel.amount).label('total'),
-                func.count(DonationReadModel.id).label('count')
-            ).where(
-                DonationReadModel.created_at >= datetime.utcnow() - timedelta(days=days),
-                DonationReadModel.status == 'succeeded'
-            ).group_by(func.date(DonationReadModel.created_at))
+            stmt = (
+                select(
+                    func.date(DonationReadModel.created_at).label("date"),
+                    func.sum(DonationReadModel.amount).label("total"),
+                    func.count(DonationReadModel.id).label("count"),
+                )
+                .where(
+                    DonationReadModel.created_at >= datetime.utcnow() - timedelta(days=days),
+                    DonationReadModel.status == "succeeded",
+                )
+                .group_by(func.date(DonationReadModel.created_at))
+            )
 
             result = await session.execute(stmt)
             return [{"date": r.date, "total": float(r.total), "count": r.count} for r in result]
 
 
 # ==================== Event Handlers für Read Model ====================
+
 
 class DonationReadModelEventHandler:
     """
@@ -203,16 +205,16 @@ class DonationReadModelEventHandler:
 
             donation = DonationReadModel(
                 id=event.aggregate_id,
-                project_id=UUID(data.get('project_id')),
-                amount=Decimal(str(data.get('amount'))),
-                currency=data.get('currency', 'EUR'),
-                status='pending',
-                payment_provider=data.get('payment_provider'),
-                payment_intent_id=data.get('payment_intent_id'),
-                donor_email_hash=data.get('donor_email_hash'),
-                donor_name=data.get('donor_name'),
+                project_id=UUID(data.get("project_id")),
+                amount=Decimal(str(data.get("amount"))),
+                currency=data.get("currency", "EUR"),
+                status="pending",
+                payment_provider=data.get("payment_provider"),
+                payment_intent_id=data.get("payment_intent_id"),
+                donor_email_hash=data.get("donor_email_hash"),
+                donor_name=data.get("donor_name"),
                 last_event_version=event.sequence_number,
-                last_event_id=event.event_id
+                last_event_id=event.event_id,
             )
 
             session.add(donation)
@@ -223,14 +225,12 @@ class DonationReadModelEventHandler:
     async def handle_donation_confirmed(self, event: DomainEvent):
         """Handler für DonationConfirmed Event"""
         async with self.session_factory() as session:
-            stmt = select(DonationReadModel).where(
-                DonationReadModel.id == event.aggregate_id
-            )
+            stmt = select(DonationReadModel).where(DonationReadModel.id == event.aggregate_id)
             result = await session.execute(stmt)
             donation = result.scalar_one_or_none()
 
             if donation:
-                donation.status = 'succeeded'
+                donation.status = "succeeded"
                 donation.last_event_version = event.sequence_number
                 donation.last_event_id = event.event_id
                 donation.updated_at = datetime.utcnow()
@@ -242,14 +242,12 @@ class DonationReadModelEventHandler:
     async def handle_donation_refunded(self, event: DomainEvent):
         """Handler für DonationRefunded Event"""
         async with self.session_factory() as session:
-            stmt = select(DonationReadModel).where(
-                DonationReadModel.id == event.aggregate_id
-            )
+            stmt = select(DonationReadModel).where(DonationReadModel.id == event.aggregate_id)
             result = await session.execute(stmt)
             donation = result.scalar_one_or_none()
 
             if donation:
-                donation.status = 'refunded'
+                donation.status = "refunded"
                 donation.last_event_version = event.sequence_number
                 donation.last_event_id = event.event_id
                 donation.updated_at = datetime.utcnow()
@@ -261,8 +259,10 @@ class DonationReadModelEventHandler:
 
 # ==================== Project Read Model ====================
 
+
 class ProjectReadModel(Base):
     """Denormalisierte Read Model Tabelle für Projekte"""
+
     __tablename__ = "projects_read_model"
 
     id = Column(PGUUID(as_uuid=True), primary_key=True)
@@ -309,13 +309,17 @@ class ProjectReadModelEventHandler:
 
             project = ProjectReadModel(
                 id=event.aggregate_id,
-                name=data.get('name'),
-                description=data.get('description'),
-                budget_total=Decimal(str(data.get('budget_total', 0))),
-                start_date=datetime.fromisoformat(data.get('start_date')) if data.get('start_date') else datetime.utcnow(),
-                status=data.get('status', 'active'),
+                name=data.get("name"),
+                description=data.get("description"),
+                budget_total=Decimal(str(data.get("budget_total", 0))),
+                start_date=(
+                    datetime.fromisoformat(data.get("start_date"))
+                    if data.get("start_date")
+                    else datetime.utcnow()
+                ),
+                status=data.get("status", "active"),
                 last_event_version=event.sequence_number,
-                last_event_id=event.event_id
+                last_event_id=event.event_id,
             )
 
             session.add(project)
@@ -327,8 +331,8 @@ class ProjectReadModelEventHandler:
         """Handler für DonationSucceeded Event (aktualisiert Projekt-Statistiken)"""
         async with self.session_factory() as session:
             data = event.data
-            project_id = UUID(data.get('project_id'))
-            amount = Decimal(str(data.get('amount')))
+            project_id = UUID(data.get("project_id"))
+            amount = Decimal(str(data.get("amount")))
 
             stmt = select(ProjectReadModel).where(ProjectReadModel.id == project_id)
             result = await session.execute(stmt)
@@ -339,7 +343,11 @@ class ProjectReadModelEventHandler:
                 project.donations_total += amount
                 project.donations_count += 1
                 project.average_donation = project.donations_total / project.donations_count
-                project.progress_percentage = (project.donations_total / project.budget_total) * 100 if project.budget_total > 0 else 0
+                project.progress_percentage = (
+                    (project.donations_total / project.budget_total) * 100
+                    if project.budget_total > 0
+                    else 0
+                )
                 project.last_donation_at = datetime.utcnow()
                 project.last_donation_amount = amount
                 project.last_event_version = event.sequence_number

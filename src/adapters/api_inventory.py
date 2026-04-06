@@ -3,24 +3,26 @@
 # REST Endpoints für Lagerverwaltung, Packlisten, Bewegungen, Bedarfe
 # Version: 3.0 - Erweitert um Need-Fulfillment, Transparenz & Trackability
 
-from datetime import datetime, timezone, UUID
-from typing import Optional, List
+from datetime import UUID, datetime, timezone
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks, Query, status
-from sqlalchemy.sql import select
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql import select
 
-from src.services.inventory_service import InventoryService
-from src.services.need_fulfillment_service import NeedFulfillmentService
-from src.services.pdf_generator import generate_packing_list_pdf
 from src.adapters.auth import get_current_active_user, require_role
 from src.core.entities.base import User, UserRole
 from src.core.entities.inventory import (
-    InventoryItemCreate, StockMovementCreate, PackingListCreate,
-    PackingListResponse, StockMovementType
+    InventoryItemCreate,
+    PackingListCreate,
+    PackingListResponse,
+    StockMovementCreate,
+    StockMovementType,
 )
 from src.core.entities.project import PackingList
-
+from src.services.inventory_service import InventoryService
+from src.services.need_fulfillment_service import NeedFulfillmentService
+from src.services.pdf_generator import generate_packing_list_pdf
 
 router = APIRouter(
     prefix="/api/v1/inventory",
@@ -29,6 +31,7 @@ router = APIRouter(
 
 
 # ==================== Dependency-Injection ====================
+
 
 def get_inventory_service(request: Request) -> InventoryService:
     """
@@ -54,6 +57,7 @@ def get_need_fulfillment_service(request: Request) -> NeedFulfillmentService:
 
 
 # ==================== Inventory Items ====================
+
 
 @router.post("/items", status_code=status.HTTP_201_CREATED)
 async def create_item(
@@ -132,14 +136,12 @@ async def get_expiring_items(
             {
                 "id": str(item.id),
                 "name": item.name,
-                "expiration_date": item.expiration_date.isoformat()
-                if item.expiration_date
-                else None,
+                "expiration_date": (
+                    item.expiration_date.isoformat() if item.expiration_date else None
+                ),
                 "quantity": item.quantity,
                 "days_until_expiry": (
-                    (item.expiration_date - now).days
-                    if item.expiration_date
-                    else None
+                    (item.expiration_date - now).days if item.expiration_date else None
                 ),
                 "need_id": str(item.need_id) if item.need_id else None,
             }
@@ -208,6 +210,7 @@ async def link_item_to_need(
 
 
 # ==================== Stock Movements ====================
+
 
 @router.post("/movements", status_code=status.HTTP_201_CREATED)
 async def create_movement(
@@ -298,14 +301,13 @@ async def get_need_fulfillment_history(
 
 # ==================== Need Fulfillment (v3.0) ====================
 
+
 @router.post("/needs/{need_id}/reserve")
 async def reserve_for_need(
     need_id: UUID,
     quantity: int,
     request: Request,
-    fulfillment_service: NeedFulfillmentService = Depends(
-        get_need_fulfillment_service
-    ),
+    fulfillment_service: NeedFulfillmentService = Depends(get_need_fulfillment_service),
     current_user: User = Depends(require_role(UserRole.PROJECT_MANAGER)),
 ) -> dict:
     """
@@ -332,9 +334,7 @@ async def fulfill_need_from_inventory(
     recipient_email: Optional[str] = None,
     shipping_method: Optional[str] = None,
     request: Request | None = None,
-    fulfillment_service: NeedFulfillmentService = Depends(
-        get_need_fulfillment_service
-    ),
+    fulfillment_service: NeedFulfillmentService = Depends(get_need_fulfillment_service),
     current_user: User = Depends(require_role(UserRole.PROJECT_MANAGER)),
 ) -> dict:
     """
@@ -359,9 +359,7 @@ async def fulfill_need_from_inventory(
 @router.get("/needs/{need_id}/fulfillment-status")
 async def get_need_fulfillment_status(
     need_id: UUID,
-    fulfillment_service: NeedFulfillmentService = Depends(
-        get_need_fulfillment_service
-    ),
+    fulfillment_service: NeedFulfillmentService = Depends(get_need_fulfillment_service),
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
     """
@@ -377,17 +375,13 @@ async def get_need_fulfillment_status(
 @router.get("/projects/{project_id}/fulfillment-summary")
 async def get_project_fulfillment_summary(
     project_id: UUID,
-    fulfillment_service: NeedFulfillmentService = Depends(
-        get_need_fulfillment_service
-    ),
+    fulfillment_service: NeedFulfillmentService = Depends(get_need_fulfillment_service),
     current_user: User = Depends(require_role(UserRole.PROJECT_MANAGER)),
 ) -> dict:
     """
     Holt Übersicht über alle Bedarfserfüllungen eines Projekts.
     """
-    result = await fulfillment_service.get_project_fulfillment_summary(
-        project_id=project_id
-    )
+    result = await fulfillment_service.get_project_fulfillment_summary(project_id=project_id)
 
     return {
         "data": result,
@@ -395,6 +389,7 @@ async def get_project_fulfillment_summary(
 
 
 # ==================== Packing Lists ====================
+
 
 @router.post("/packing-lists", status_code=status.HTTP_201_CREATED)
 async def create_packing_list(
@@ -469,9 +464,9 @@ async def mark_as_delivered(
             "id": str(packing_list.id),
             "number": packing_list.packing_list_number,
             "status": packing_list.status,
-            "delivered_at": packing_list.delivery_date.isoformat()
-            if packing_list.delivery_date
-            else None,
+            "delivered_at": (
+                packing_list.delivery_date.isoformat() if packing_list.delivery_date else None
+            ),
             "transparency_hash": packing_list.transparency_hash,
         }
     }
@@ -533,12 +528,12 @@ async def track_packing_list(
                 "status": packing_list.status,
                 "recipient_name": packing_list.recipient_name,
                 "recipient_address": packing_list.recipient_address,
-                "shipping_date": packing_list.shipping_date.isoformat()
-                if packing_list.shipping_date
-                else None,
-                "delivery_date": packing_list.delivery_date.isoformat()
-                if packing_list.delivery_date
-                else None,
+                "shipping_date": (
+                    packing_list.shipping_date.isoformat() if packing_list.shipping_date else None
+                ),
+                "delivery_date": (
+                    packing_list.delivery_date.isoformat() if packing_list.delivery_date else None
+                ),
                 "tracking_number": packing_list.tracking_number,
                 "items": [
                     {
@@ -552,6 +547,7 @@ async def track_packing_list(
 
 
 # ==================== Reports ====================
+
 
 @router.get("/reports/inventory-value")
 async def get_inventory_value_report(

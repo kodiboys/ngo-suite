@@ -29,47 +29,58 @@ from src.core.entities.base import Base
 
 # ==================== Enums ====================
 
+
 class ApprovalStatus(str, Enum):
     """Status für 4-Augen-Prinzip"""
-    PENDING = "pending"          # Wartet auf Freigabe
-    APPROVED = "approved"        # Freigegeben
-    REJECTED = "rejected"        # Abgelehnt
-    ESCALATED = "escalated"      # Eskaliert an höhere Instanz
-    EXPIRED = "expired"          # Freigabe abgelaufen
+
+    PENDING = "pending"  # Wartet auf Freigabe
+    APPROVED = "approved"  # Freigegeben
+    REJECTED = "rejected"  # Abgelehnt
+    ESCALATED = "escalated"  # Eskaliert an höhere Instanz
+    EXPIRED = "expired"  # Freigabe abgelaufen
+
 
 class MoneyLaunderingRisk(str, Enum):
     """Geldwäscherisiko-Stufen"""
-    LOW = "low"                  # < 1.000€
-    MEDIUM = "medium"            # 1.000€ - 10.000€
-    HIGH = "high"                # 10.000€ - 50.000€
-    CRITICAL = "critical"        # > 50.000€
-    SUSPICIOUS = "suspicious"    # Verdachtsfall
+
+    LOW = "low"  # < 1.000€
+    MEDIUM = "medium"  # 1.000€ - 10.000€
+    HIGH = "high"  # 10.000€ - 50.000€
+    CRITICAL = "critical"  # > 50.000€
+    SUSPICIOUS = "suspicious"  # Verdachtsfall
+
 
 class ComplianceCheckType(str, Enum):
     """Arten von Compliance-Prüfungen"""
-    FOUR_EYES = "four_eyes"              # 4-Augen-Prinzip
-    MONEY_LAUNDERING = "money_laundering" # Geldwäsche
-    TAX_VALIDATION = "tax_validation"     # Steuerprüfung
-    SANCTIONS_LIST = "sanctions_list"     # Sanktionslisten
-    PEP_CHECK = "pep_check"              # Politically Exposed Persons
-    GOBD_COMPLIANCE = "gobd_compliance"   # GoBD-Konformität
-    BUDGET_LIMIT = "budget_limit"         # Budgetüberschreitung
+
+    FOUR_EYES = "four_eyes"  # 4-Augen-Prinzip
+    MONEY_LAUNDERING = "money_laundering"  # Geldwäsche
+    TAX_VALIDATION = "tax_validation"  # Steuerprüfung
+    SANCTIONS_LIST = "sanctions_list"  # Sanktionslisten
+    PEP_CHECK = "pep_check"  # Politically Exposed Persons
+    GOBD_COMPLIANCE = "gobd_compliance"  # GoBD-Konformität
+    BUDGET_LIMIT = "budget_limit"  # Budgetüberschreitung
+
 
 class ComplianceResult(str, Enum):
     """Ergebnis einer Compliance-Prüfung"""
+
     PASSED = "passed"
     FAILED = "failed"
     REQUIRES_REVIEW = "requires_review"
     BLOCKED = "blocked"
     REPORTED = "reported"  # An Behörde gemeldet
 
+
 # ==================== 4-Augen-Prinzip Model ====================
+
 
 class FourEyesApproval(Base):
     """
     4-Augen-Prinzip: Transaktionen > 5.000€ benötigen zwei Freigaben
     GoBD-konforme Dokumentation von Freigabeprozessen
     """
+
     __tablename__ = "four_eyes_approvals"
     __table_args__ = (
         Index("idx_foureyes_entity", "entity_type", "entity_id"),
@@ -141,13 +152,16 @@ class FourEyesApproval(Base):
             return (datetime.utcnow() - self.initiated_at).days
         return 0
 
+
 # ==================== Money Laundering Check Model ====================
+
 
 class MoneyLaunderingCheck(Base):
     """
     Geldwäscheprüfung nach GwG (Geldwäschegesetz)
     Automatische Erkennung und Meldung verdächtiger Transaktionen
     """
+
     __tablename__ = "money_laundering_checks"
     __table_args__ = (
         Index("idx_ml_entity", "entity_type", "entity_id"),
@@ -218,12 +232,12 @@ class MoneyLaunderingCheck(Base):
             score += 10
 
         # Hochrisikoländer (0-20 Punkte)
-        high_risk_countries = ['RU', 'CN', 'IR', 'KP', 'SY']
+        high_risk_countries = ["RU", "CN", "IR", "KP", "SY"]
         if self.donor_country in high_risk_countries:
             score += 20
 
         # Anonyme Zahlungsmethoden (0-20 Punkte)
-        anonymous_methods = ['crypto', 'prepaid_card', 'cash']
+        anonymous_methods = ["crypto", "prepaid_card", "cash"]
         if self.payment_method in anonymous_methods:
             score += 20
 
@@ -245,13 +259,16 @@ class MoneyLaunderingCheck(Base):
 
         return self.risk_score
 
+
 # ==================== Tax Compliance Model ====================
+
 
 class TaxComplianceCheck(Base):
     """
     Steuerliche Compliance-Prüfungen
     USt-IdNr. Validierung, Steuerabzug, Meldepflichten
     """
+
     __tablename__ = "tax_compliance_checks"
     __table_args__ = (
         Index("idx_tax_vat_id", "vat_id"),
@@ -266,7 +283,7 @@ class TaxComplianceCheck(Base):
 
     # Steueridentifikation
     vat_id = Column(String(20), nullable=True)  # Umsatzsteuer-ID
-    tax_id = Column(String(20), nullable=True)   # Steuer-ID (Deutschland)
+    tax_id = Column(String(20), nullable=True)  # Steuer-ID (Deutschland)
     country_code = Column(String(2), nullable=True)
 
     # Validierung
@@ -298,20 +315,23 @@ class TaxComplianceCheck(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    @validator('vat_id')
+    @validator("vat_id")
     def validate_vat_id(cls, v):
         """Einfache VAT-ID Validierung (erweiterte Prüfung via API)"""
-        if v and not v.startswith(('DE', 'AT', 'CH', 'LU', 'NL', 'BE', 'FR', 'IT', 'ES', 'PT')):
+        if v and not v.startswith(("DE", "AT", "CH", "LU", "NL", "BE", "FR", "IT", "ES", "PT")):
             raise ValueError(f"Invalid VAT ID format: {v}")
         return v.upper() if v else None
 
+
 # ==================== GoBD Compliance Model ====================
+
 
 class GoBDComplianceRecord(Base):
     """
     GoBD-Compliance Record (Grundsätze zur ordnungsmäßigen Führung und Aufbewahrung von Büchern)
     Stellt revisionssichere Dokumentation sicher
     """
+
     __tablename__ = "gobd_compliance_records"
     __table_args__ = (
         Index("idx_gobd_record_type", "record_type", "record_id"),
@@ -355,15 +375,19 @@ class GoBDComplianceRecord(Base):
     def extend_retention(self, additional_years: int):
         """Verlängert Aufbewahrungsfrist"""
         from dateutil.relativedelta import relativedelta
+
         self.retention_until += relativedelta(years=additional_years)
 
+
 # ==================== Compliance Alert Model ====================
+
 
 class ComplianceAlert(Base):
     """
     Compliance-Alerts für automatische Benachrichtigungen
     Bei Verdachtsfällen, abgelaufenen Fristen, fehlenden Freigaben
     """
+
     __tablename__ = "compliance_alerts"
     __table_args__ = (
         Index("idx_alert_status", "status"),
@@ -391,7 +415,9 @@ class ComplianceAlert(Base):
     assigned_at = Column(DateTime, nullable=True)
 
     # Status
-    status = Column(String(20), nullable=False, default="open")  # open, acknowledged, resolved, false_positive
+    status = Column(
+        String(20), nullable=False, default="open"
+    )  # open, acknowledged, resolved, false_positive
     resolved_at = Column(DateTime, nullable=True)
     resolved_by = Column(PGUUID(as_uuid=True), nullable=True)
     resolution_note = Column(Text, nullable=True)
@@ -413,10 +439,13 @@ class ComplianceAlert(Base):
     created_by = Column(PGUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
 # ==================== Pydantic Models ====================
+
 
 class FourEyesRequest(BaseModel):
     """API Request für 4-Augen-Freigabe"""
+
     entity_type: str
     entity_id: UUID
     amount: Decimal = Field(..., gt=0)
@@ -424,14 +453,16 @@ class FourEyesRequest(BaseModel):
     approver_1_id: UUID
     approver_2_id: UUID | None = None
 
-    @validator('amount')
+    @validator("amount")
     def validate_amount_threshold(cls, v):
         if v < 5000:
             raise ValueError(f"4-Augen-Prinzip nur für Beträge > 5.000€, aktuell: {v}€")
         return v
 
+
 class MoneyLaunderingReport(BaseModel):
     """Report für Geldwäscheverdacht"""
+
     entity_type: str
     entity_id: UUID
     amount: Decimal
@@ -440,8 +471,10 @@ class MoneyLaunderingReport(BaseModel):
     risk_factors: list[str]
     recommendation: str
 
+
 class ComplianceCheckResult(BaseModel):
     """Ergebnis einer Compliance-Prüfung"""
+
     check_type: ComplianceCheckType
     passed: bool
     risk_score: int | None = None

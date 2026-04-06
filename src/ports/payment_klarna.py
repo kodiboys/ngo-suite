@@ -24,6 +24,7 @@ from src.ports.payment_base import (
 
 logger = logging.getLogger(__name__)
 
+
 class KlarnaProvider(PaymentProviderInterface):
     """
     Klarna Payment Provider Implementation
@@ -39,14 +40,13 @@ class KlarnaProvider(PaymentProviderInterface):
         self.mode = mode
 
         # Base URL
-        self.base_url = "https://api.klarna.com" if mode == "live" else "https://api.playground.klarna.com"
+        self.base_url = (
+            "https://api.klarna.com" if mode == "live" else "https://api.playground.klarna.com"
+        )
 
         # HTTP Client
         auth_string = base64.b64encode(f"{username}:{password}".encode()).decode()
-        self.headers = {
-            "Authorization": f"Basic {auth_string}",
-            "Content-Type": "application/json"
-        }
+        self.headers = {"Authorization": f"Basic {auth_string}", "Content-Type": "application/json"}
         self.client = httpx.AsyncClient(timeout=30.0)
 
     async def create_payment_intent(self, request: CreatePaymentRequest) -> PaymentIntent:
@@ -68,23 +68,21 @@ class KlarnaProvider(PaymentProviderInterface):
                         "quantity": 1,
                         "unit_price": int(request.amount * 100),
                         "total_amount": int(request.amount * 100),
-                        "total_tax_amount": 0
+                        "total_tax_amount": 0,
                     }
                 ],
                 "merchant_urls": {
                     "confirmation": request.success_url or "https://trueangels.de/donation/success",
                     "cancel": request.cancel_url or "https://trueangels.de/donation/cancel",
-                    "back": "https://trueangels.de/donate"
+                    "back": "https://trueangels.de/donate",
                 },
                 "merchant_reference1": str(request.project_id),
-                "merchant_reference2": request.donor_email
+                "merchant_reference2": request.donor_email,
             }
 
             # Klarna Payment Session erstellen
             response = await self.client.post(
-                f"{self.base_url}/payments/v1/sessions",
-                json=order_data,
-                headers=self.headers
+                f"{self.base_url}/payments/v1/sessions", json=order_data, headers=self.headers
             )
             response.raise_for_status()
             session = response.json()
@@ -102,29 +100,31 @@ class KlarnaProvider(PaymentProviderInterface):
                 project_id=request.project_id,
                 metadata={
                     "session_id": session["order_id"],
-                    "redirect_url": f"{self.base_url}/payments/v1/authorizations/{session['order_id']}"
+                    "redirect_url": f"{self.base_url}/payments/v1/authorizations/{session['order_id']}",
                 },
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
             )
 
         except httpx.HTTPError as e:
             logger.error(f"Klarna error creating payment: {e}")
             raise PaymentProviderError(f"Klarna error: {str(e)}") from e
 
-    async def confirm_payment(self, payment_intent_id: str, payment_method_id: str = None) -> PaymentIntent:
+    async def confirm_payment(
+        self, payment_intent_id: str, payment_method_id: str = None
+    ) -> PaymentIntent:
         """Bestätigt Klarna Zahlung (Autorisierung)"""
         try:
             # Authorisierung der Order
             auth_data = {
                 "order_amount": 0,  # Wird aus Session genommen
                 "order_tax_amount": 0,
-                "order_lines": []
+                "order_lines": [],
             }
 
             response = await self.client.post(
                 f"{self.base_url}/payments/v1/authorizations/{payment_intent_id}/order",
                 json=auth_data,
-                headers=self.headers
+                headers=self.headers,
             )
             response.raise_for_status()
             order = response.json()
@@ -134,8 +134,12 @@ class KlarnaProvider(PaymentProviderInterface):
                 provider=PaymentProvider.KLARNA,
                 amount=Decimal(order["order_amount"] / 100),
                 currency=order["purchase_currency"],
-                status=PaymentStatus.SUCCEEDED if order["status"] == "AUTHORIZED" else PaymentStatus.PENDING,
-                metadata=order
+                status=(
+                    PaymentStatus.SUCCEEDED
+                    if order["status"] == "AUTHORIZED"
+                    else PaymentStatus.PENDING
+                ),
+                metadata=order,
             )
 
         except httpx.HTTPError as e:
@@ -146,8 +150,7 @@ class KlarnaProvider(PaymentProviderInterface):
         """Holt Klarna Order Status"""
         try:
             response = await self.client.get(
-                f"{self.base_url}/payments/v1/orders/{payment_intent_id}",
-                headers=self.headers
+                f"{self.base_url}/payments/v1/orders/{payment_intent_id}", headers=self.headers
             )
             response.raise_for_status()
             order = response.json()
@@ -156,7 +159,7 @@ class KlarnaProvider(PaymentProviderInterface):
                 "AUTHORIZED": PaymentStatus.SUCCEEDED,
                 "PART_CAPTURED": PaymentStatus.PARTIALLY_REFUNDED,
                 "CAPTURED": PaymentStatus.SUCCEEDED,
-                "CANCELLED": PaymentStatus.FAILED
+                "CANCELLED": PaymentStatus.FAILED,
             }
 
             return PaymentIntent(
@@ -165,7 +168,7 @@ class KlarnaProvider(PaymentProviderInterface):
                 amount=Decimal(order["order_amount"] / 100),
                 currency=order["purchase_currency"],
                 status=status_map.get(order["status"], PaymentStatus.PENDING),
-                metadata=order
+                metadata=order,
             )
 
         except httpx.HTTPError as e:
@@ -176,14 +179,16 @@ class KlarnaProvider(PaymentProviderInterface):
         """Führt Klarna Rückerstattung durch"""
         try:
             refund_data = {
-                "refunded_amount": int(refund_request.amount * 100) if refund_request.amount else None,
-                "description": refund_request.reason or "Refund requested"
+                "refunded_amount": (
+                    int(refund_request.amount * 100) if refund_request.amount else None
+                ),
+                "description": refund_request.reason or "Refund requested",
             }
 
             response = await self.client.post(
                 f"{self.base_url}/payments/v1/orders/{refund_request.payment_intent_id}/refunds",
                 json=refund_data,
-                headers=self.headers
+                headers=self.headers,
             )
             response.raise_for_status()
             refund = response.json()
@@ -193,7 +198,7 @@ class KlarnaProvider(PaymentProviderInterface):
                 payment_intent_id=refund_request.payment_intent_id,
                 amount=Decimal(refund["refunded_amount"] / 100),
                 status=refund["status"],
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
             )
 
         except httpx.HTTPError as e:
@@ -215,7 +220,7 @@ class KlarnaProvider(PaymentProviderInterface):
                 payment_intent_id=event_data.get("order_id"),
                 data=event_data,
                 created_at=datetime.utcnow(),
-                is_test=False
+                is_test=False,
             )
 
         except Exception as e:
@@ -227,7 +232,7 @@ class KlarnaProvider(PaymentProviderInterface):
         try:
             response = await self.client.patch(
                 f"{self.base_url}/payments/v1/orders/{payment_intent_id}/cancel",
-                headers=self.headers
+                headers=self.headers,
             )
             response.raise_for_status()
 
@@ -242,6 +247,6 @@ class KlarnaProvider(PaymentProviderInterface):
         mapping = {
             PaymentMethod.KLARNA_PAY_NOW: ["pay_now"],
             PaymentMethod.KLARNA_PAY_LATER: ["pay_later"],
-            PaymentMethod.KLARNA_SLICE_IT: ["slice_it"]
+            PaymentMethod.KLARNA_SLICE_IT: ["slice_it"],
         }
         return mapping.get(method, ["pay_now"])

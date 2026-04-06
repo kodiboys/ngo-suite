@@ -13,8 +13,10 @@ from pydantic import BaseModel, Field, validator
 
 # ==================== Enums ====================
 
+
 class SocialPlatform(str, Enum):
     """Unterstützte Social Media Plattformen"""
+
     TWITTER = "twitter"
     FACEBOOK = "facebook"
     LINKEDIN = "linkedin"
@@ -22,8 +24,10 @@ class SocialPlatform(str, Enum):
     MASTODON = "mastodon"
     BLUESKY = "bluesky"
 
+
 class PostStatus(str, Enum):
     """Status eines Social Media Posts"""
+
     DRAFT = "draft"
     PENDING = "pending"  # In der Warteschlange
     SCHEDULED = "scheduled"
@@ -32,18 +36,23 @@ class PostStatus(str, Enum):
     FAILED = "failed"
     DELETED = "deleted"
 
+
 class MediaType(str, Enum):
     """Medientypen für Posts"""
+
     IMAGE = "image"
     VIDEO = "video"
     GIF = "gif"
     CAROUSEL = "carousel"
 
+
 # ==================== Data Models ====================
+
 
 @dataclass
 class SocialMediaAccount:
     """Social Media Account eines Benutzers"""
+
     id: UUID
     platform: SocialPlatform
     platform_user_id: str  # Twitter User ID, Facebook Page ID, etc.
@@ -63,9 +72,11 @@ class SocialMediaAccount:
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
 
+
 @dataclass
 class MediaAttachment:
     """Medienanhang für Posts"""
+
     type: MediaType
     url: str | None = None
     file_bytes: bytes | None = None
@@ -75,9 +86,11 @@ class MediaAttachment:
     width: int | None = None
     height: int | None = None
 
+
 @dataclass
 class SocialPost:
     """Social Media Post"""
+
     id: UUID
     account_id: UUID
     platform: SocialPlatform
@@ -121,8 +134,10 @@ class SocialPost:
     error_message: str | None = None
     retry_count: int = 0
 
+
 class CreatePostRequest(BaseModel):
     """API Request für neuen Post"""
+
     text: str = Field(..., min_length=1, max_length=2800, description="Post-Text")
     platform: SocialPlatform
     scheduled_at: datetime | None = None
@@ -133,23 +148,25 @@ class CreatePostRequest(BaseModel):
     campaign_id: UUID | None = None
     project_id: UUID | None = None
 
-    @validator('text')
+    @validator("text")
     def validate_text_length(cls, v, values):
-        platform = values.get('platform')
+        platform = values.get("platform")
         if platform == SocialPlatform.TWITTER and len(v) > 280:
             raise ValueError(f"Twitter posts max 280 characters, got {len(v)}")
         if platform == SocialPlatform.INSTAGRAM and len(v) > 2200:
             raise ValueError(f"Instagram posts max 2200 characters, got {len(v)}")
         return v
 
-    @validator('hashtags')
+    @validator("hashtags")
     def validate_hashtags(cls, v):
         if len(v) > 30:
             raise ValueError("Maximum 30 hashtags")
-        return [tag.lower().replace('#', '') for tag in v]
+        return [tag.lower().replace("#", "") for tag in v]
+
 
 class PostResponse(BaseModel):
     """API Response für Post"""
+
     id: UUID
     platform: SocialPlatform
     text: str
@@ -162,7 +179,9 @@ class PostResponse(BaseModel):
     class Config:
         use_enum_values = True
 
+
 # ==================== Abstract Provider Interface ====================
+
 
 class SocialProviderInterface(ABC):
     """Abstract Interface für alle Social Media Provider"""
@@ -183,7 +202,9 @@ class SocialProviderInterface(ABC):
         pass
 
     @abstractmethod
-    async def get_post_stats(self, platform_post_id: str, account: SocialMediaAccount) -> dict[str, int]:
+    async def get_post_stats(
+        self, platform_post_id: str, account: SocialMediaAccount
+    ) -> dict[str, int]:
         """Holt Engagement-Statistiken"""
         pass
 
@@ -197,7 +218,9 @@ class SocialProviderInterface(ABC):
         """Erneuert Access Token"""
         pass
 
+
 # ==================== Social Media Queue ====================
+
 
 class SocialMediaQueue:
     """
@@ -220,10 +243,7 @@ class SocialMediaQueue:
         """
 
         # Redis Sorted Set mit priority als Score
-        await self.redis.zadd(
-            self.queue_key,
-            {str(post_id): priority}
-        )
+        await self.redis.zadd(self.queue_key, {str(post_id): priority})
 
     async def dequeue(self) -> UUID | None:
         """Holt nächsten Post aus der Warteschlange"""
@@ -239,11 +259,13 @@ class SocialMediaQueue:
 
         await self.redis.lpush(
             self.dead_letter_key,
-            json.dumps({
-                "post_id": str(post_id),
-                "error": error,
-                "failed_at": datetime.utcnow().isoformat()
-            })
+            json.dumps(
+                {
+                    "post_id": str(post_id),
+                    "error": error,
+                    "failed_at": datetime.utcnow().isoformat(),
+                }
+            ),
         )
 
     async def get_queue_length(self) -> int:

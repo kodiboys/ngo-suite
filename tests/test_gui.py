@@ -18,7 +18,7 @@ def streamlit_app():
     process = subprocess.Popen(
         ["streamlit", "run", "streamlit_app.py", "--server.port=8502", "--server.headless=true"],
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
+        stderr=subprocess.PIPE,
     )
     time.sleep(5)  # Warte auf Start
     yield
@@ -29,9 +29,9 @@ def streamlit_app():
 def driver():
     """Selenium WebDriver"""
     options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
     driver = webdriver.Chrome(options=options)
     yield driver
     driver.quit()
@@ -68,9 +68,7 @@ def test_dark_mode_toggle(driver, streamlit_app):
     toggle.click()
     time.sleep(1)
 
-    new_theme = driver.execute_script(
-        "return document.documentElement.getAttribute('data-theme')"
-    )
+    new_theme = driver.execute_script("return document.documentElement.getAttribute('data-theme')")
 
     assert new_theme != initial_theme
 
@@ -145,6 +143,7 @@ def test_donation_form(driver, streamlit_app):
 
 
 # ==================== Performance Tests ====================
+
 
 @pytest.mark.benchmark
 def test_page_load_time(benchmark, driver, streamlit_app):

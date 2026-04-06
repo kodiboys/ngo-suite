@@ -22,6 +22,7 @@ from src.ports.social_base import (
 
 logger = logging.getLogger(__name__)
 
+
 class FacebookProvider(SocialProviderInterface):
     """
     Facebook & Instagram Provider (Meta Graph API)
@@ -43,11 +44,13 @@ class FacebookProvider(SocialProviderInterface):
     async def authenticate(self, account: SocialMediaAccount) -> bool:
         """Authentifiziert sich mit Facebook Page Access Token"""
         try:
-            self.graph = facebook.GraphAPI(access_token=account.access_token, version=self.api_version)
+            self.graph = facebook.GraphAPI(
+                access_token=account.access_token, version=self.api_version
+            )
 
             # Teste Zugriff
-            profile = self.graph.get_object('me')
-            return 'id' in profile
+            profile = self.graph.get_object("me")
+            return "id" in profile
 
         except Exception as e:
             logger.error(f"Facebook authentication failed: {e}")
@@ -67,7 +70,7 @@ class FacebookProvider(SocialProviderInterface):
             else:
                 raise ValueError(f"Unsupported platform: {post.platform}")
 
-            post.platform_post_id = result['id']
+            post.platform_post_id = result["id"]
             post.status = PostStatus.PUBLISHED
             post.published_at = datetime.utcnow()
 
@@ -85,13 +88,13 @@ class FacebookProvider(SocialProviderInterface):
         message = self._format_facebook_post(post)
 
         # Hole Page ID aus Account Metadata
-        page_id = post.account_id.metadata.get('page_id')
+        page_id = post.account_id.metadata.get("page_id")
 
         if not page_id:
             # Hole Pages des Users
-            pages = self.graph.get_object('me/accounts')
-            if pages['data']:
-                page_id = pages['data'][0]['id']
+            pages = self.graph.get_object("me/accounts")
+            if pages["data"]:
+                page_id = pages["data"][0]["id"]
 
         # Post mit Medien
         if post.media:
@@ -105,25 +108,21 @@ class FacebookProvider(SocialProviderInterface):
             if len(media_ids) > 1:
                 result = self.graph.put_object(
                     parent_object=page_id,
-                    connection_name='feed',
+                    connection_name="feed",
                     message=message,
-                    attached_media=json.dumps([
-                        {'media_fbid': media_id} for media_id in media_ids
-                    ])
+                    attached_media=json.dumps([{"media_fbid": media_id} for media_id in media_ids]),
                 )
             else:
                 result = self.graph.put_object(
                     parent_object=page_id,
-                    connection_name='feed',
+                    connection_name="feed",
                     message=message,
-                    attached_media=media_ids[0] if media_ids else None
+                    attached_media=media_ids[0] if media_ids else None,
                 )
         else:
             # Text-only Post
             result = self.graph.put_object(
-                parent_object=page_id,
-                connection_name='feed',
-                message=message
+                parent_object=page_id, connection_name="feed", message=message
             )
 
         return result
@@ -135,27 +134,24 @@ class FacebookProvider(SocialProviderInterface):
             raise ValueError("Instagram posts require media (image or video)")
 
         # Hole Instagram Business Account ID
-        ig_business_id = post.account_id.metadata.get('instagram_business_id')
+        ig_business_id = post.account_id.metadata.get("instagram_business_id")
 
         if not ig_business_id:
             # Hole von Facebook Page
-            page_id = post.account_id.metadata.get('page_id')
-            page_info = self.graph.get_object(
-                f"{page_id}",
-                fields='instagram_business_account'
-            )
-            if 'instagram_business_account' in page_info:
-                ig_business_id = page_info['instagram_business_account']['id']
+            page_id = post.account_id.metadata.get("page_id")
+            page_info = self.graph.get_object(f"{page_id}", fields="instagram_business_account")
+            if "instagram_business_account" in page_info:
+                ig_business_id = page_info["instagram_business_account"]["id"]
 
         # Upload Container
         media = post.media[0]
         container_data = {
-            'media_type': 'IMAGE' if media.type == MediaType.IMAGE else 'VIDEO',
-            'caption': self._format_instagram_caption(post)
+            "media_type": "IMAGE" if media.type == MediaType.IMAGE else "VIDEO",
+            "caption": self._format_instagram_caption(post),
         }
 
         if media.url:
-            container_data['image_url'] = media.url
+            container_data["image_url"] = media.url
         elif media.file_bytes:
             # Upload zu Facebook Servers (vereinfacht)
             # In Production: Zuerst zu Facebook hochladen
@@ -163,16 +159,14 @@ class FacebookProvider(SocialProviderInterface):
 
         # Create Container
         container = self.graph.put_object(
-            parent_object=ig_business_id,
-            connection_name='media',
-            **container_data
+            parent_object=ig_business_id, connection_name="media", **container_data
         )
 
         # Publish Container
         result = self.graph.post_object(
             parent_object=ig_business_id,
-            connection_name='media_publish',
-            creation_id=container['id']
+            connection_name="media_publish",
+            creation_id=container["id"],
         )
 
         return result
@@ -187,7 +181,9 @@ class FacebookProvider(SocialProviderInterface):
             logger.error(f"Failed to delete post: {e}")
             return False
 
-    async def get_post_stats(self, platform_post_id: str, account: SocialMediaAccount) -> dict[str, int]:
+    async def get_post_stats(
+        self, platform_post_id: str, account: SocialMediaAccount
+    ) -> dict[str, int]:
         """Holt Post Analytics (Likes, Shares, Comments)"""
         try:
             await self.authenticate(account)
@@ -195,25 +191,20 @@ class FacebookProvider(SocialProviderInterface):
             # Hole Insights via Graph API
             insights = self.graph.get_object(
                 f"{platform_post_id}/insights",
-                metric='post_impressions,post_reactions_like_total,post_shares,post_comments'
+                metric="post_impressions,post_reactions_like_total,post_shares,post_comments",
             )
 
-            stats = {
-                'like_count': 0,
-                'share_count': 0,
-                'comment_count': 0,
-                'impression_count': 0
-            }
+            stats = {"like_count": 0, "share_count": 0, "comment_count": 0, "impression_count": 0}
 
-            for insight in insights.get('data', []):
-                if insight['name'] == 'post_reactions_like_total':
-                    stats['like_count'] = insight['values'][0]['value']
-                elif insight['name'] == 'post_shares':
-                    stats['share_count'] = insight['values'][0]['value']
-                elif insight['name'] == 'post_comments':
-                    stats['comment_count'] = insight['values'][0]['value']
-                elif insight['name'] == 'post_impressions':
-                    stats['impression_count'] = insight['values'][0]['value']
+            for insight in insights.get("data", []):
+                if insight["name"] == "post_reactions_like_total":
+                    stats["like_count"] = insight["values"][0]["value"]
+                elif insight["name"] == "post_shares":
+                    stats["share_count"] = insight["values"][0]["value"]
+                elif insight["name"] == "post_comments":
+                    stats["comment_count"] = insight["values"][0]["value"]
+                elif insight["name"] == "post_impressions":
+                    stats["impression_count"] = insight["values"][0]["value"]
 
             return stats
 
@@ -237,15 +228,15 @@ class FacebookProvider(SocialProviderInterface):
                     "grant_type": "fb_exchange_token",
                     "client_id": self.app_id,
                     "client_secret": self.app_secret,
-                    "fb_exchange_token": account.refresh_token or account.access_token
-                }
+                    "fb_exchange_token": account.refresh_token or account.access_token,
+                },
             )
 
             if response.status_code == 200:
                 data = response.json()
-                account.access_token = data['access_token']
+                account.access_token = data["access_token"]
                 account.token_expires_at = datetime.utcnow().replace(
-                    hour=datetime.utcnow().hour + (data.get('expires_in', 5184000) / 3600)
+                    hour=datetime.utcnow().hour + (data.get("expires_in", 5184000) / 3600)
                 )
             else:
                 raise Exception(f"Token refresh failed: {response.text}")
@@ -258,11 +249,11 @@ class FacebookProvider(SocialProviderInterface):
 
         # Hashtags
         if post.hashtags:
-            text += '\n\n' + ' '.join([f'#{tag}' for tag in post.hashtags])
+            text += "\n\n" + " ".join([f"#{tag}" for tag in post.hashtags])
 
         # Link Preview
         if post.link_preview:
-            text += f'\n\n{post.link_preview}'
+            text += f"\n\n{post.link_preview}"
 
         return text
 
@@ -272,11 +263,11 @@ class FacebookProvider(SocialProviderInterface):
 
         # Hashtags (max 30)
         if post.hashtags:
-            caption += '\n\n' + ' '.join([f'#{tag}' for tag in post.hashtags[:30]])
+            caption += "\n\n" + " ".join([f"#{tag}" for tag in post.hashtags[:30]])
 
         # Mentions
         if post.mentions:
-            caption += '\n' + ' '.join([f'@{mention}' for mention in post.mentions])
+            caption += "\n" + " ".join([f"@{mention}" for mention in post.mentions])
 
         # Limit 2200 chars
         return caption[:2200]

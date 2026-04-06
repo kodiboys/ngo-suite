@@ -26,6 +26,7 @@ from src.services.auth import get_password_hash
 
 # ==================== Test Database ====================
 
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create event loop for tests"""
@@ -38,11 +39,7 @@ def event_loop():
 async def test_engine():
     """Create test database engine"""
     # In-memory SQLite für schnelle Tests (oder PostgreSQL für Integration)
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        echo=False,
-        poolclass=NullPool
-    )
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False, poolclass=NullPool)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -55,11 +52,7 @@ async def test_engine():
 @pytest.fixture
 async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     """Create test database session"""
-    async_session = async_sessionmaker(
-        test_engine, 
-        class_=AsyncSession, 
-        expire_on_commit=False
-    )
+    async_session = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
 
     async with async_session() as session:
         yield session
@@ -67,6 +60,7 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 
 
 # ==================== Redis Fixtures ====================
+
 
 @pytest.fixture
 async def redis_client():
@@ -78,6 +72,7 @@ async def redis_client():
 
 
 # ==================== FastAPI Client ====================
+
 
 @pytest.fixture
 def client() -> Generator:
@@ -97,6 +92,7 @@ async def async_client():
 
 # ==================== Test Data Fixtures ====================
 
+
 @pytest.fixture
 async def test_user(db_session) -> User:
     """Create test user"""
@@ -105,7 +101,7 @@ async def test_user(db_session) -> User:
         password_hash=get_password_hash("test123"),
         role="admin",
         email_verified=True,
-        created_at=datetime.utcnow()
+        created_at=datetime.utcnow(),
     )
     db_session.add(user)
     await db_session.commit()
@@ -121,7 +117,7 @@ async def test_project(db_session, test_user) -> Project:
         account_number="40000",
         account_name="Test Spenden",
         account_type="ERTRAEGE",
-        current_hash="test"
+        current_hash="test",
     )
     db_session.add(skr42_account)
     await db_session.flush()
@@ -134,7 +130,7 @@ async def test_project(db_session, test_user) -> Project:
         budget_total=Decimal("10000"),
         start_date=datetime.utcnow(),
         status="active",
-        created_by=test_user.id
+        created_by=test_user.id,
     )
     db_session.add(project)
     await db_session.commit()
@@ -159,7 +155,7 @@ async def test_donation(db_session, test_user, test_project) -> Donation:
         payment_intent_id=f"pi_{uuid4().hex[:12]}",
         payment_status="succeeded",
         created_by=test_user.id,
-        current_hash="test"
+        current_hash="test",
     )
     db_session.add(donation)
     await db_session.commit()
@@ -180,7 +176,7 @@ async def test_inventory_item(db_session, test_project, test_user) -> InventoryI
         quantity=100,
         min_stock_level=10,
         unit_price=Decimal("5.99"),
-        created_by=test_user.id
+        created_by=test_user.id,
     )
     db_session.add(item)
     await db_session.commit()
@@ -190,12 +186,12 @@ async def test_inventory_item(db_session, test_project, test_user) -> InventoryI
 
 # ==================== Auth Token Fixture ====================
 
+
 @pytest.fixture
 async def auth_token(client, test_user) -> str:
     """Get authentication token for test user"""
     response = client.post(
-        "/api/v1/auth/login",
-        json={"email": "test@trueangels.de", "password": "test123"}
+        "/api/v1/auth/login", json={"email": "test@trueangels.de", "password": "test123"}
     )
     return response.json().get("access_token")
 
@@ -208,10 +204,11 @@ def auth_headers(auth_token) -> dict:
 
 # ==================== Mock Fixtures ====================
 
+
 @pytest.fixture
 def mock_stripe():
     """Mock Stripe API calls"""
-    with patch('stripe.PaymentIntent.create') as mock:
+    with patch("stripe.PaymentIntent.create") as mock:
         mock.return_value.id = "pi_mock_123"
         mock.return_value.client_secret = "secret_mock"
         mock.return_value.amount = 10000
@@ -222,7 +219,7 @@ def mock_stripe():
 @pytest.fixture
 def mock_paypal():
     """Mock PayPal API calls"""
-    with patch('httpx.AsyncClient.post') as mock:
+    with patch("httpx.AsyncClient.post") as mock:
         mock_response = AsyncMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"id": "pay_mock_123"}
@@ -231,6 +228,7 @@ def mock_paypal():
 
 
 # ==================== Cleanup ====================
+
 
 @pytest.fixture(autouse=True)
 async def cleanup_db(db_session):

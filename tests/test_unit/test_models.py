@@ -29,7 +29,7 @@ class TestDonationModel:
             amount=Decimal("100.00"),
             payment_provider="stripe",
             payment_intent_id="pi_123",
-            created_by=test_user.id
+            created_by=test_user.id,
         )
 
         assert donation.amount == Decimal("100.00")
@@ -47,7 +47,7 @@ class TestDonationModel:
                 amount=Decimal("-10.00"),  # Negativer Betrag
                 payment_provider="stripe",
                 payment_intent_id="pi_123",
-                created_by=test_user.id
+                created_by=test_user.id,
             )
 
     def test_donation_money_laundering_flag(self, test_user, test_project):
@@ -60,7 +60,7 @@ class TestDonationModel:
             amount=Decimal("15000.00"),  # > 10.000€
             payment_provider="stripe",
             payment_intent_id="pi_123",
-            created_by=test_user.id
+            created_by=test_user.id,
         )
 
         assert donation.money_laundering_flag is True
@@ -76,7 +76,7 @@ class TestDonationModel:
             amount=Decimal("100.00"),
             payment_provider="stripe",
             payment_intent_id="pi_123",
-            created_by=test_user.id
+            created_by=test_user.id,
         )
 
         hash1 = donation.compute_hash()
@@ -102,7 +102,7 @@ class TestInventoryModel:
             quantity=100,
             min_stock_level=10,
             unit_price=Decimal("5.99"),
-            created_by=test_user.id
+            created_by=test_user.id,
         )
 
         assert item.available_quantity == 100
@@ -118,7 +118,7 @@ class TestInventoryModel:
             cost_center=test_project.cost_center,
             quantity=5,
             min_stock_level=10,
-            created_by=test_user.id
+            created_by=test_user.id,
         )
 
         item.update_stock_status()
@@ -134,7 +134,7 @@ class TestInventoryModel:
             cost_center=test_project.cost_center,
             quantity=0,
             min_stock_level=10,
-            created_by=test_user.id
+            created_by=test_user.id,
         )
 
         item.update_stock_status()
@@ -150,7 +150,7 @@ class TestInventoryModel:
             cost_center=test_project.cost_center,
             quantity=100,
             reserved_quantity=30,
-            created_by=test_user.id
+            created_by=test_user.id,
         )
 
         assert item.available_quantity == 70
@@ -168,7 +168,7 @@ class TestComplianceModel:
             reason="Test transaction",
             initiator_id=test_user.id,
             approver_1_id=uuid4(),
-            expires_at=datetime.utcnow() + timedelta(hours=48)
+            expires_at=datetime.utcnow() + timedelta(hours=48),
         )
 
         assert approval.status == "pending"
@@ -182,7 +182,7 @@ class TestComplianceModel:
             entity_id=uuid4(),
             amount=Decimal("25000.00"),
             donor_country="RU",
-            payment_method="crypto"
+            payment_method="crypto",
         )
 
         risk_score = ml_check.calculate_risk_score()

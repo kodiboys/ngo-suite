@@ -53,10 +53,7 @@ class ComplianceService:
     # ==================== 4-Augen-Prinzip ====================
 
     async def request_four_eyes_approval(
-        self,
-        request: FourEyesRequest,
-        initiator_id: UUID,
-        ip_address: str
+        self, request: FourEyesRequest, initiator_id: UUID, ip_address: str
     ) -> FourEyesApproval:
         """
         Fordert 4-Augen-Freigabe für Transaktion an
@@ -66,15 +63,14 @@ class ComplianceService:
             stmt = select(FourEyesApproval).where(
                 FourEyesApproval.entity_type == request.entity_type,
                 FourEyesApproval.entity_id == request.entity_id,
-                FourEyesApproval.status == ApprovalStatus.PENDING
+                FourEyesApproval.status == ApprovalStatus.PENDING,
             )
             result = await session.execute(stmt)
             existing = result.scalar_one_or_none()
 
             if existing:
                 raise HTTPException(
-                    status_code=409,
-                    detail="Approval request already exists for this entity"
+                    status_code=409, detail="Approval request already exists for this entity"
                 )
 
             # Erstelle Freigabeanfrage
@@ -87,7 +83,7 @@ class ComplianceService:
                 approver_1_id=request.approver_1_id,
                 approver_2_id=request.approver_2_id,
                 expires_at=datetime.utcnow() + timedelta(hours=48),  # 48h Frist
-                status=ApprovalStatus.PENDING
+                status=ApprovalStatus.PENDING,
             )
 
             session.add(approval)
@@ -104,41 +100,41 @@ class ComplianceService:
                     "entity_type": request.entity_type,
                     "entity_id": str(request.entity_id),
                     "amount": str(request.amount),
-                    "approver_1": str(request.approver_1_id)
+                    "approver_1": str(request.approver_1_id),
                 },
                 ip_address=ip_address,
-                retention_until=datetime.utcnow() + timedelta(days=3650)
+                retention_until=datetime.utcnow() + timedelta(days=3650),
             )
             session.add(audit)
             await session.commit()
 
             # Publish Event
-            await self.event_bus.publish(Event(
-                aggregate_id=approval.id,
-                aggregate_type="FourEyesApproval",
-                event_type="ApprovalRequested",
-                data={
-                    "entity_type": request.entity_type,
-                    "entity_id": str(request.entity_id),
-                    "amount": str(request.amount),
-                    "expires_at": approval.expires_at.isoformat()
-                },
-                user_id=initiator_id,
-                metadata={"ip": ip_address}
-            ))
+            await self.event_bus.publish(
+                Event(
+                    aggregate_id=approval.id,
+                    aggregate_type="FourEyesApproval",
+                    event_type="ApprovalRequested",
+                    data={
+                        "entity_type": request.entity_type,
+                        "entity_id": str(request.entity_id),
+                        "amount": str(request.amount),
+                        "expires_at": approval.expires_at.isoformat(),
+                    },
+                    user_id=initiator_id,
+                    metadata={"ip": ip_address},
+                )
+            )
 
             # Erstelle Alert für Prüfer
             await self._create_approval_alert(approval)
 
-            logger.info(f"Four-eyes approval requested for {request.entity_type}/{request.entity_id}")
+            logger.info(
+                f"Four-eyes approval requested for {request.entity_type}/{request.entity_id}"
+            )
             return approval
 
     async def approve_transaction(
-        self,
-        approval_id: UUID,
-        approver_id: UUID,
-        comment: str | None,
-        ip_address: str
+        self, approval_id: UUID, approver_id: UUID, comment: str | None, ip_address: str
     ) -> FourEyesApproval:
         """
         Gibt eine Transaktion frei (2. oder 3. Prüfer)
@@ -150,8 +146,7 @@ class ComplianceService:
 
             if approval.status != ApprovalStatus.PENDING:
                 raise HTTPException(
-                    status_code=400,
-                    detail=f"Approval is already {approval.status}"
+                    status_code=400, detail=f"Approval is already {approval.status}"
                 )
 
             if approval.expires_at < datetime.utcnow():
@@ -169,7 +164,9 @@ class ComplianceService:
                 approval.approver_2_comment = comment
                 approval.approver_2_ip = ip_address
             else:
-                raise HTTPException(status_code=403, detail="Not authorized to approve this transaction")
+                raise HTTPException(
+                    status_code=403, detail="Not authorized to approve this transaction"
+                )
 
             # Prüfe ob alle Freigaben vorliegen
             if approval.is_fully_approved:
@@ -189,34 +186,32 @@ class ComplianceService:
                 entity_id=approval.id,
                 new_values={"status": approval.status.value},
                 ip_address=ip_address,
-                retention_until=datetime.utcnow() + timedelta(days=3650)
+                retention_until=datetime.utcnow() + timedelta(days=3650),
             )
             session.add(audit)
             await session.commit()
 
             # Publish Event
-            await self.event_bus.publish(Event(
-                aggregate_id=approval.id,
-                aggregate_type="FourEyesApproval",
-                event_type="ApprovalGranted",
-                data={
-                    "approver_id": str(approver_id),
-                    "fully_approved": approval.is_fully_approved,
-                    "status": approval.status.value
-                },
-                user_id=approver_id,
-                metadata={"ip": ip_address}
-            ))
+            await self.event_bus.publish(
+                Event(
+                    aggregate_id=approval.id,
+                    aggregate_type="FourEyesApproval",
+                    event_type="ApprovalGranted",
+                    data={
+                        "approver_id": str(approver_id),
+                        "fully_approved": approval.is_fully_approved,
+                        "status": approval.status.value,
+                    },
+                    user_id=approver_id,
+                    metadata={"ip": ip_address},
+                )
+            )
 
             logger.info(f"Transaction {approval.entity_id} approved by {approver_id}")
             return approval
 
     async def reject_transaction(
-        self,
-        approval_id: UUID,
-        approver_id: UUID,
-        reason: str,
-        ip_address: str
+        self, approval_id: UUID, approver_id: UUID, reason: str, ip_address: str
     ) -> FourEyesApproval:
         """
         Lehnt eine Transaktion ab
@@ -240,25 +235,29 @@ class ComplianceService:
                 entity_id=approval.id,
                 new_values={"status": approval.status.value, "reason": reason},
                 ip_address=ip_address,
-                retention_until=datetime.utcnow() + timedelta(days=3650)
+                retention_until=datetime.utcnow() + timedelta(days=3650),
             )
             session.add(audit)
             await session.commit()
 
             # Publish Event
-            await self.event_bus.publish(Event(
-                aggregate_id=approval.id,
-                aggregate_type="FourEyesApproval",
-                event_type="ApprovalRejected",
-                data={"reason": reason},
-                user_id=approver_id,
-                metadata={"ip": ip_address}
-            ))
+            await self.event_bus.publish(
+                Event(
+                    aggregate_id=approval.id,
+                    aggregate_type="FourEyesApproval",
+                    event_type="ApprovalRejected",
+                    data={"reason": reason},
+                    user_id=approver_id,
+                    metadata={"ip": ip_address},
+                )
+            )
 
             logger.warning(f"Transaction {approval.entity_id} rejected by {approver_id}: {reason}")
             return approval
 
-    async def _execute_approved_transaction(self, approval: FourEyesApproval, session: AsyncSession):
+    async def _execute_approved_transaction(
+        self, approval: FourEyesApproval, session: AsyncSession
+    ):
         """Führt die freigegebene Transaktion aus"""
         # Hier wird die ursprüngliche Transaktion ausgeführt
         # z.B. Spende buchen, Ausgabe freigeben, etc.
@@ -290,7 +289,7 @@ class ComplianceService:
         donor_email: str | None,
         donor_country: str | None,
         payment_method: str | None,
-        ip_address: str | None
+        ip_address: str | None,
     ) -> MoneyLaunderingCheck:
         """
         Führt Geldwäscheprüfung nach GwG durch
@@ -305,7 +304,7 @@ class ComplianceService:
                 donor_email=donor_email,
                 donor_country=donor_country,
                 payment_method=payment_method,
-                ip_address=ip_address
+                ip_address=ip_address,
             )
 
             # Führe verschiedene Prüfungen durch
@@ -314,65 +313,69 @@ class ComplianceService:
 
             # 1. Betragsprüfung
             if amount >= self.ML_THRESHOLD:
-                flags.append({
-                    "type": "high_amount",
-                    "threshold": float(self.ML_THRESHOLD),
-                    "actual": float(amount),
-                    "severity": "high"
-                })
+                flags.append(
+                    {
+                        "type": "high_amount",
+                        "threshold": float(self.ML_THRESHOLD),
+                        "actual": float(amount),
+                        "severity": "high",
+                    }
+                )
                 checks_performed.append("amount_threshold_check")
 
             # 2. Hochrisikoländer
-            high_risk_countries = ['RU', 'CN', 'IR', 'KP', 'SY', 'VE', 'UA']
+            high_risk_countries = ["RU", "CN", "IR", "KP", "SY", "VE", "UA"]
             if donor_country in high_risk_countries:
-                flags.append({
-                    "type": "high_risk_country",
-                    "country": donor_country,
-                    "severity": "critical"
-                })
+                flags.append(
+                    {"type": "high_risk_country", "country": donor_country, "severity": "critical"}
+                )
                 checks_performed.append("country_risk_check")
 
             # 3. Anonyme Zahlungsmethoden
-            anonymous_methods = ['crypto', 'prepaid_card', 'cash']
+            anonymous_methods = ["crypto", "prepaid_card", "cash"]
             if payment_method and payment_method in anonymous_methods:
-                flags.append({
-                    "type": "anonymous_payment",
-                    "method": payment_method,
-                    "severity": "high"
-                })
+                flags.append(
+                    {"type": "anonymous_payment", "method": payment_method, "severity": "high"}
+                )
                 checks_performed.append("payment_method_check")
 
             # 4. Strukturierungserkennung (Smurfing)
             # Prüfe ob mehrere kleine Transaktionen kurz hintereinander
             smurfing_check = await self._check_smurfing(session, donor_email, amount)
             if smurfing_check:
-                flags.append({
-                    "type": "smurfing_suspected",
-                    "details": smurfing_check,
-                    "severity": "critical"
-                })
+                flags.append(
+                    {
+                        "type": "smurfing_suspected",
+                        "details": smurfing_check,
+                        "severity": "critical",
+                    }
+                )
                 checks_performed.append("smurfing_check")
 
             # 5. PEP-Check (Politically Exposed Persons)
             # In Production: API-Aufruf zu externem Dienst
             pep_result = await self._check_pep(donor_name, donor_email)
             if pep_result:
-                flags.append({
-                    "type": "politically_exposed_person",
-                    "details": pep_result,
-                    "severity": "critical"
-                })
+                flags.append(
+                    {
+                        "type": "politically_exposed_person",
+                        "details": pep_result,
+                        "severity": "critical",
+                    }
+                )
                 ml_check.pep_check_passed = False
                 checks_performed.append("pep_check")
 
             # 6. Sanktionslisten-Check
             sanctions_result = await self._check_sanctions_list(donor_name, donor_email)
             if sanctions_result:
-                flags.append({
-                    "type": "sanctions_list_hit",
-                    "details": sanctions_result,
-                    "severity": "critical"
-                })
+                flags.append(
+                    {
+                        "type": "sanctions_list_hit",
+                        "details": sanctions_result,
+                        "severity": "critical",
+                    }
+                )
                 ml_check.sanctions_list_hit = True
                 ml_check.sanctions_list_name = sanctions_result.get("list_name")
                 checks_performed.append("sanctions_check")
@@ -414,18 +417,22 @@ class ComplianceService:
                     "risk_score": ml_check.risk_score,
                     "risk_level": ml_check.risk_level.value,
                     "flags_count": len(flags),
-                    "result": ml_check.compliance_result.value
+                    "result": ml_check.compliance_result.value,
                 },
                 ip_address="system",
-                retention_until=datetime.utcnow() + timedelta(days=3650)
+                retention_until=datetime.utcnow() + timedelta(days=3650),
             )
             session.add(audit)
             await session.commit()
 
-            logger.info(f"Money laundering check for {entity_type}/{entity_id}: risk={ml_check.risk_level.value}, score={ml_check.risk_score}")
+            logger.info(
+                f"Money laundering check for {entity_type}/{entity_id}: risk={ml_check.risk_level.value}, score={ml_check.risk_score}"
+            )
             return ml_check
 
-    async def _check_smurfing(self, session: AsyncSession, donor_email: str, current_amount: Decimal) -> dict | None:
+    async def _check_smurfing(
+        self, session: AsyncSession, donor_email: str, current_amount: Decimal
+    ) -> dict | None:
         """Prüft auf Strukturierung (Smurfing) - viele kleine Transaktionen"""
         from datetime import timedelta
 
@@ -434,7 +441,7 @@ class ComplianceService:
 
         stmt = select(MoneyLaunderingCheck).where(
             MoneyLaunderingCheck.donor_email == donor_email,
-            MoneyLaunderingCheck.created_at >= cutoff
+            MoneyLaunderingCheck.created_at >= cutoff,
         )
         result = await session.execute(stmt)
         recent_checks = result.scalars().all()
@@ -448,7 +455,7 @@ class ComplianceService:
                 "transaction_count": transaction_count,
                 "total_amount": float(total_amount),
                 "timeframe_hours": 24,
-                "reason": "unusual_transaction_pattern"
+                "reason": "unusual_transaction_pattern",
             }
         return None
 
@@ -476,23 +483,27 @@ class ComplianceService:
             "donor_country": ml_check.donor_country,
             "risk_factors": ml_check.flags,
             "reporting_entity": "TrueAngels e.V.",
-            "contact": "compliance@trueangels.de"
+            "contact": "compliance@trueangels.de",
         }
 
         ml_check.report_data = report_data
-        ml_check.report_reference = f"FIU-{datetime.utcnow().strftime('%Y%m%d')}-{ml_check.id.hex[:8]}"
+        ml_check.report_reference = (
+            f"FIU-{datetime.utcnow().strftime('%Y%m%d')}-{ml_check.id.hex[:8]}"
+        )
 
         logger.warning(f"Suspicious transaction reported to FIU: {ml_check.report_reference}")
 
         # Publish Event für Compliance Officer
-        await self.event_bus.publish(Event(
-            aggregate_id=ml_check.id,
-            aggregate_type="MoneyLaunderingCheck",
-            event_type="ReportedToFIU",
-            data=report_data,
-            user_id=None,
-            metadata={}
-        ))
+        await self.event_bus.publish(
+            Event(
+                aggregate_id=ml_check.id,
+                aggregate_type="MoneyLaunderingCheck",
+                event_type="ReportedToFIU",
+                data=report_data,
+                user_id=None,
+                metadata={},
+            )
+        )
 
     # ==================== Steuer-Compliance ====================
 
@@ -515,7 +526,7 @@ class ComplianceService:
                         "valid": data.get("valid", False),
                         "name": data.get("name"),
                         "address": data.get("address"),
-                        "request_date": datetime.utcnow().isoformat()
+                        "request_date": datetime.utcnow().isoformat(),
                     }
                 else:
                     return {"valid": False, "error": "VIES service unavailable"}
@@ -544,7 +555,7 @@ class ComplianceService:
                 tax_deductible=True,
                 receipt_generated=True,
                 receipt_number=f"TA-{donation.created_at.year}-{donation.id.hex[:8].upper()}",
-                receipt_generated_at=datetime.utcnow()
+                receipt_generated_at=datetime.utcnow(),
             )
 
             session.add(tax_check)
@@ -557,6 +568,7 @@ class ComplianceService:
 
             # Trigger PDF Generation
             from src.services.pdf_generator import DonationReceiptGenerator
+
             receipt_gen = DonationReceiptGenerator(session)
             pdf_bytes = await receipt_gen.generate_donation_receipt(donation_id)
 
@@ -567,18 +579,13 @@ class ComplianceService:
                 "receipt_number": tax_check.receipt_number,
                 "generated_at": tax_check.receipt_generated_at.isoformat(),
                 "tax_deductible": True,
-                "amount": float(donation.amount)
+                "amount": float(donation.amount),
             }
 
     # ==================== GoBD-Compliance ====================
 
     async def archive_for_gobd(
-        self,
-        record_type: str,
-        record_id: UUID,
-        content: bytes,
-        filename: str,
-        created_by: UUID
+        self, record_type: str, record_id: UUID, content: bytes, filename: str, created_by: UUID
     ) -> GoBDComplianceRecord:
         """
         Archiviert Dokumente GoBD-konform (revisionssicher, manipulationsgeschützt)
@@ -607,7 +614,7 @@ class ComplianceService:
                 mime_type="application/pdf",
                 encrypted=True,
                 deletion_protected_until=datetime.utcnow() + timedelta(days=365 * retention_years),
-                created_by=created_by
+                created_by=created_by,
             )
 
             session.add(gobd_record)
@@ -631,7 +638,7 @@ class ComplianceService:
             entity_id=approval.entity_id,
             assigned_to=approval.approver_1_id,
             response_deadline=approval.expires_at,
-            created_by=approval.initiator_id
+            created_by=approval.initiator_id,
         )
 
         async with self.session_factory() as session:
@@ -650,7 +657,7 @@ class ComplianceService:
             entity_id=ml_check.entity_id,
             assigned_to=None,  # Compliance Officer
             response_deadline=datetime.utcnow() + timedelta(hours=24),
-            created_by=None
+            created_by=None,
         )
 
         async with self.session_factory() as session:
@@ -658,30 +665,36 @@ class ComplianceService:
             await session.commit()
 
             # Publish Event für Compliance Officer
-            await self.event_bus.publish(Event(
-                aggregate_id=alert.id,
-                aggregate_type="ComplianceAlert",
-                event_type="MoneyLaunderingAlert",
-                data={
-                    "risk_level": ml_check.risk_level.value,
-                    "amount": float(ml_check.amount),
-                    "flags": ml_check.flags
-                },
-                user_id=None,
-                metadata={"priority": "critical"}
-            ))
+            await self.event_bus.publish(
+                Event(
+                    aggregate_id=alert.id,
+                    aggregate_type="ComplianceAlert",
+                    event_type="MoneyLaunderingAlert",
+                    data={
+                        "risk_level": ml_check.risk_level.value,
+                        "amount": float(ml_check.amount),
+                        "flags": ml_check.flags,
+                    },
+                    user_id=None,
+                    metadata={"priority": "critical"},
+                )
+            )
 
     async def get_pending_approvals(self, user_id: UUID) -> list[FourEyesApproval]:
         """Holt ausstehende Freigaben für einen Benutzer"""
         async with self.session_factory() as session:
-            stmt = select(FourEyesApproval).where(
-                or_(
-                    FourEyesApproval.approver_1_id == user_id,
-                    FourEyesApproval.approver_2_id == user_id
-                ),
-                FourEyesApproval.status == ApprovalStatus.PENDING,
-                FourEyesApproval.expires_at > datetime.utcnow()
-            ).order_by(FourEyesApproval.expires_at)
+            stmt = (
+                select(FourEyesApproval)
+                .where(
+                    or_(
+                        FourEyesApproval.approver_1_id == user_id,
+                        FourEyesApproval.approver_2_id == user_id,
+                    ),
+                    FourEyesApproval.status == ApprovalStatus.PENDING,
+                    FourEyesApproval.expires_at > datetime.utcnow(),
+                )
+                .order_by(FourEyesApproval.expires_at)
+            )
 
             result = await session.execute(stmt)
             return result.scalars().all()
@@ -691,23 +704,23 @@ class ComplianceService:
         async with self.session_factory() as session:
             # Statistik: Ausstehende Freigaben
             pending_count = await session.execute(
-                select(func.count()).select_from(FourEyesApproval).where(
-                    FourEyesApproval.status == ApprovalStatus.PENDING
-                )
+                select(func.count())
+                .select_from(FourEyesApproval)
+                .where(FourEyesApproval.status == ApprovalStatus.PENDING)
             )
 
             # Statistik: Geldwäsche-Verdachtsfälle
             ml_count = await session.execute(
-                select(func.count()).select_from(MoneyLaunderingCheck).where(
-                    MoneyLaunderingCheck.compliance_result == ComplianceResult.REQUIRES_REVIEW
-                )
+                select(func.count())
+                .select_from(MoneyLaunderingCheck)
+                .where(MoneyLaunderingCheck.compliance_result == ComplianceResult.REQUIRES_REVIEW)
             )
 
             # Statistik: Offene Alerts
             alert_count = await session.execute(
-                select(func.count()).select_from(ComplianceAlert).where(
-                    ComplianceAlert.status == "open"
-                )
+                select(func.count())
+                .select_from(ComplianceAlert)
+                .where(ComplianceAlert.status == "open")
             )
 
             # Statistik: GoBD-konforme Archive
@@ -720,7 +733,7 @@ class ComplianceService:
                 "money_laundering_cases": ml_count.scalar() or 0,
                 "open_alerts": alert_count.scalar() or 0,
                 "gobd_archived_documents": archive_count.scalar() or 0,
-                "compliance_score": self._calculate_compliance_score()
+                "compliance_score": self._calculate_compliance_score(),
             }
 
     def _calculate_compliance_score(self) -> int:

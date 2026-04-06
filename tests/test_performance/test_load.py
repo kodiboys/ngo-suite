@@ -15,10 +15,10 @@ class TrueAngelsUser(HttpUser):
 
     def on_start(self):
         """Login beim Start"""
-        response = self.client.post("/api/v1/auth/login", json={
-            "email": "loadtest@trueangels.de",
-            "password": "loadtest123"
-        })
+        response = self.client.post(
+            "/api/v1/auth/login",
+            json={"email": "loadtest@trueangels.de", "password": "loadtest123"},
+        )
         if response.status_code == 200:
             self.token = response.json()["access_token"]
             self.headers = {"Authorization": f"Bearer {self.token}"}
@@ -36,13 +36,17 @@ class TrueAngelsUser(HttpUser):
     @task(1)
     def create_donation(self):
         """Spende erstellen"""
-        self.client.post("/api/v1/payments/create-donation", json={
-            "amount": 50.00,
-            "currency": "EUR",
-            "payment_method": "credit_card",
-            "donor_email": f"load_{self.user_id}@example.com",
-            "project_id": "test-project-id"
-        }, headers=self.headers)
+        self.client.post(
+            "/api/v1/payments/create-donation",
+            json={
+                "amount": 50.00,
+                "currency": "EUR",
+                "payment_method": "credit_card",
+                "donor_email": f"load_{self.user_id}@example.com",
+                "project_id": "test-project-id",
+            },
+            headers=self.headers,
+        )
 
     @task(1)
     def get_dashboard_stats(self):
@@ -63,7 +67,7 @@ class TestLoadPerformance:
             "/api/v1/projects",
             "/api/v1/donations",
             "/api/v1/inventory/items/low-stock",
-            "/api/v1/compliance/dashboard"
+            "/api/v1/compliance/dashboard",
         ]
 
         response_times = []

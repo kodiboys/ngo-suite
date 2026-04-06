@@ -20,6 +20,7 @@ from src.core.rate_limiting.redis_limiter import (
 
 # ==================== Unit Tests ====================
 
+
 @pytest.mark.asyncio
 async def test_sliding_window_rate_limiter(redis_client):
     """Test Sliding Window Rate Limiter"""
@@ -30,7 +31,7 @@ async def test_sliding_window_rate_limiter(redis_client):
         scope=RateLimitScope.IP,
         strategy=RateLimitStrategy.SLIDING_WINDOW,
         limit=5,
-        window_seconds=10
+        window_seconds=10,
     )
 
     key = "test:127.0.0.1"
@@ -59,7 +60,7 @@ async def test_token_bucket_rate_limiter(redis_client):
         strategy=RateLimitStrategy.TOKEN_BUCKET,
         limit=10,
         window_seconds=10,
-        refill_rate=1.0  # 1 Token pro Sekunde
+        refill_rate=1.0,  # 1 Token pro Sekunde
     )
 
     key = "test:token:127.0.0.1"
@@ -85,7 +86,7 @@ async def test_circuit_breaker(redis_client):
         success_threshold=2,
         timeout_seconds=5,
         half_open_max_calls=2,
-        rolling_window_seconds=10
+        rolling_window_seconds=10,
     )
 
     breaker = CircuitBreaker(config, redis_client)
@@ -98,7 +99,7 @@ async def test_circuit_breaker(redis_client):
     assert status.state.value == "open"  # Circuit sollte offen sein
 
     # Warte auf Timeout (in Tests mocken wir)
-    with patch.object(breaker, '_set_open_until') as mock:
+    with patch.object(breaker, "_set_open_until") as mock:
         mock.return_value = None
         # Manuell auf Half-Open setzen
         await breaker._set_state("half_open")
@@ -108,6 +109,7 @@ async def test_circuit_breaker(redis_client):
 
 
 # ==================== Integration Tests ====================
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
@@ -137,7 +139,7 @@ async def test_circuit_breaker_with_function(redis_client):
         success_threshold=1,
         timeout_seconds=1,
         half_open_max_calls=1,
-        rolling_window_seconds=10
+        rolling_window_seconds=10,
     )
 
     breaker = CircuitBreaker(config, redis_client)
@@ -162,6 +164,7 @@ async def test_circuit_breaker_with_function(redis_client):
 
 # ==================== Load Tests ====================
 
+
 @pytest.mark.benchmark
 @pytest.mark.asyncio
 async def test_rate_limiter_benchmark(benchmark, redis_client):
@@ -172,7 +175,7 @@ async def test_rate_limiter_benchmark(benchmark, redis_client):
         scope=RateLimitScope.IP,
         strategy=RateLimitStrategy.SLIDING_WINDOW,
         limit=1000,
-        window_seconds=60
+        window_seconds=60,
     )
 
     key = "benchmark:127.0.0.1"
@@ -194,7 +197,7 @@ async def test_concurrent_rate_limiting(redis_client):
         scope=RateLimitScope.IP,
         strategy=RateLimitStrategy.SLIDING_WINDOW,
         limit=100,
-        window_seconds=1
+        window_seconds=1,
     )
 
     key = "concurrent:127.0.0.1"
@@ -223,7 +226,7 @@ from hypothesis import strategies as st
 @given(
     limit=st.integers(min_value=1, max_value=100),
     window=st.integers(min_value=1, max_value=60),
-    requests=st.integers(min_value=1, max_value=200)
+    requests=st.integers(min_value=1, max_value=200),
 )
 def test_rate_limit_properties(limit, window, requests):
     """Test: Rate Limit Eigenschaften"""
@@ -239,10 +242,10 @@ def test_rate_limit_properties(limit, window, requests):
 
 # ==================== Performance Tests ====================
 
+
 @pytest.mark.benchmark
 def test_rate_limit_key_generation(benchmark):
     """Benchmark: Key Generation Performance"""
-
 
     def generate_keys():
         keys = []

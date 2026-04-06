@@ -18,6 +18,7 @@ from src.ports.social_base import (
 
 logger = logging.getLogger(__name__)
 
+
 class TwitterProvider(SocialProviderInterface):
     """
     Twitter/X Provider Implementation
@@ -66,10 +67,7 @@ class TwitterProvider(SocialProviderInterface):
             tweet_text = self._format_tweet(post)
 
             if media_ids:
-                result = self.client.update_status(
-                    status=tweet_text,
-                    media_ids=media_ids
-                )
+                result = self.client.update_status(status=tweet_text, media_ids=media_ids)
             else:
                 result = self.client.update_status(status=tweet_text)
 
@@ -98,23 +96,22 @@ class TwitterProvider(SocialProviderInterface):
             logger.error(f"Failed to delete tweet: {e}")
             return False
 
-    async def get_post_stats(self, platform_post_id: str, account: SocialMediaAccount) -> dict[str, int]:
+    async def get_post_stats(
+        self, platform_post_id: str, account: SocialMediaAccount
+    ) -> dict[str, int]:
         """Holt Tweet Analytics"""
         try:
             await self.authenticate(account)
 
             # Twitter API v2 für erweiterte Analytics
-            tweet = self.client.get_status(
-                platform_post_id,
-                tweet_mode='extended'
-            )
+            tweet = self.client.get_status(platform_post_id, tweet_mode="extended")
 
             return {
-                'like_count': tweet.favorite_count,
-                'retweet_count': tweet.retweet_count,
-                'reply_count': 0,  # Nicht direkt verfügbar in v1.1
-                'quote_count': 0,
-                'impression_count': 0  # Nur mit v2 API
+                "like_count": tweet.favorite_count,
+                "retweet_count": tweet.retweet_count,
+                "reply_count": 0,  # Nicht direkt verfügbar in v1.1
+                "quote_count": 0,
+                "impression_count": 0,  # Nur mit v2 API
             }
         except Exception as e:
             logger.error(f"Failed to get tweet stats: {e}")
@@ -130,17 +127,16 @@ class TwitterProvider(SocialProviderInterface):
             if media.file_bytes:
                 # Upload aus Bytes
                 result = self.client.media_upload(
-                    filename=media.filename or "media.jpg",
-                    file=media.file_bytes
+                    filename=media.filename or "media.jpg", file=media.file_bytes
                 )
             elif media.url:
                 # Download von URL (in Production)
                 import httpx
+
                 async with httpx.AsyncClient() as client:
                     response = await client.get(media.url)
                     result = self.client.media_upload(
-                        filename=media.filename or "media.jpg",
-                        file=response.content
+                        filename=media.filename or "media.jpg", file=response.content
                     )
             else:
                 raise ValueError("No media data provided")
@@ -166,16 +162,16 @@ class TwitterProvider(SocialProviderInterface):
                 data={
                     "refresh_token": account.refresh_token,
                     "grant_type": "refresh_token",
-                    "client_id": self.client_id
+                    "client_id": self.client_id,
                 },
-                auth=(self.client_id, self.client_secret)
+                auth=(self.client_id, self.client_secret),
             )
 
             if response.status_code == 200:
                 data = response.json()
-                account.access_token = data['access_token']
-                if 'refresh_token' in data:
-                    account.refresh_token = data['refresh_token']
+                account.access_token = data["access_token"]
+                if "refresh_token" in data:
+                    account.refresh_token = data["refresh_token"]
                 account.token_expires_at = datetime.utcnow().replace(
                     hour=datetime.utcnow().hour + 2
                 )
@@ -190,14 +186,14 @@ class TwitterProvider(SocialProviderInterface):
 
         # Hashtags hinzufügen
         if post.hashtags:
-            hashtags = ' ' + ' '.join([f'#{tag}' for tag in post.hashtags])
+            hashtags = " " + " ".join([f"#{tag}" for tag in post.hashtags])
             # Prüfe Länge
             if len(text + hashtags) <= 280:
                 text += hashtags
 
         # Mentions (falls nicht bereits im Text)
         if post.mentions:
-            mentions = ' ' + ' '.join([f'@{mention}' for mention in post.mentions])
+            mentions = " " + " ".join([f"@{mention}" for mention in post.mentions])
             if len(text + mentions) <= 280:
                 text += mentions
 

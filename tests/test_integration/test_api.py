@@ -14,8 +14,7 @@ class TestAuthAPI:
     async def test_login_success(self, client, test_user):
         """Test erfolgreicher Login"""
         response = client.post(
-            "/api/v1/auth/login",
-            json={"email": "test@trueangels.de", "password": "test123"}
+            "/api/v1/auth/login", json={"email": "test@trueangels.de", "password": "test123"}
         )
 
         assert response.status_code == 200
@@ -28,8 +27,7 @@ class TestAuthAPI:
     async def test_login_invalid_credentials(self, client):
         """Test Login mit falschen Credentials"""
         response = client.post(
-            "/api/v1/auth/login",
-            json={"email": "wrong@example.com", "password": "wrong"}
+            "/api/v1/auth/login", json={"email": "wrong@example.com", "password": "wrong"}
         )
 
         assert response.status_code == 401
@@ -41,8 +39,7 @@ class TestAuthAPI:
         # 5 schnelle Login-Versuche
         for i in range(6):
             response = client.post(
-                "/api/v1/auth/login",
-                json={"email": "test@trueangels.de", "password": "wrong"}
+                "/api/v1/auth/login", json={"email": "test@trueangels.de", "password": "wrong"}
             )
 
             if i < 5:
@@ -65,9 +62,9 @@ class TestDonationAPI:
                 "currency": "EUR",
                 "payment_method": "credit_card",
                 "donor_email": "donor@example.com",
-                "project_id": str(test_project.id)
+                "project_id": str(test_project.id),
             },
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         assert response.status_code == 200
@@ -78,10 +75,7 @@ class TestDonationAPI:
     @pytest.mark.asyncio
     async def test_get_donations(self, client, auth_headers, test_donation):
         """Test Abrufen von Spenden"""
-        response = client.get(
-            "/api/v1/donations",
-            headers=auth_headers
-        )
+        response = client.get("/api/v1/donations", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -90,10 +84,7 @@ class TestDonationAPI:
     @pytest.mark.asyncio
     async def test_get_donation_by_id(self, client, auth_headers, test_donation):
         """Test Abrufen einer Spende nach ID"""
-        response = client.get(
-            f"/api/v1/donations/{test_donation.id}",
-            headers=auth_headers
-        )
+        response = client.get(f"/api/v1/donations/{test_donation.id}", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -107,10 +98,7 @@ class TestProjectAPI:
     @pytest.mark.asyncio
     async def test_get_projects(self, client, auth_headers, test_project):
         """Test Abrufen aller Projekte"""
-        response = client.get(
-            "/api/v1/projects",
-            headers=auth_headers
-        )
+        response = client.get("/api/v1/projects", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -119,10 +107,7 @@ class TestProjectAPI:
     @pytest.mark.asyncio
     async def test_get_project_stats(self, client, auth_headers, test_project):
         """Test Projekt-Statistiken"""
-        response = client.get(
-            f"/api/v1/projects/{test_project.id}/stats",
-            headers=auth_headers
-        )
+        response = client.get(f"/api/v1/projects/{test_project.id}/stats", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -143,9 +128,9 @@ class TestInventoryAPI:
                 "sku": "TEST-001",
                 "category": "food",
                 "quantity": 100,
-                "project_id": str(test_project.id)
+                "project_id": str(test_project.id),
             },
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         assert response.status_code == 200
@@ -156,10 +141,7 @@ class TestInventoryAPI:
     @pytest.mark.asyncio
     async def test_get_low_stock_items(self, client, auth_headers, test_inventory_item):
         """Test Abrufen von Artikeln mit niedrigem Bestand"""
-        response = client.get(
-            "/api/v1/inventory/items/low-stock",
-            headers=auth_headers
-        )
+        response = client.get("/api/v1/inventory/items/low-stock", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -180,9 +162,9 @@ class TestComplianceAPI:
                 "entity_id": str(uuid4()),
                 "amount": 7500.00,
                 "reason": "Test transaction",
-                "approver_1_id": str(uuid4())
+                "approver_1_id": str(uuid4()),
             },
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         assert response.status_code == 200
@@ -200,9 +182,9 @@ class TestComplianceAPI:
                 "entity_id": str(uuid4()),
                 "amount": 25000.00,
                 "donor_country": "RU",
-                "payment_method": "crypto"
+                "payment_method": "crypto",
             },
-            headers=auth_headers
+            headers=auth_headers,
         )
 
         assert response.status_code == 200
@@ -220,12 +202,8 @@ class TestExportAPI:
         """Test Spendenexport"""
         response = client.get(
             "/api/v1/export/donations",
-            params={
-                "start_date": "2024-01-01",
-                "end_date": "2024-12-31",
-                "format": "csv"
-            },
-            headers=auth_headers
+            params={"start_date": "2024-01-01", "end_date": "2024-12-31", "format": "csv"},
+            headers=auth_headers,
         )
 
         assert response.status_code == 200

@@ -1,16 +1,16 @@
 # FILE: src/adapters/api_compliance.py
 # MODULE: Compliance API Endpoints (FastAPI)
 
-from datetime import datetime, timezone, UUID
-from typing import Optional, List, Annotated
+from datetime import UUID, datetime, timezone
+from typing import Annotated, List, Optional
 
 from fastapi import (
     APIRouter,
     Depends,
+    File,
+    HTTPException,
     Query,
     Request,
-    HTTPException,
-    File,
     UploadFile,
 )
 
@@ -18,7 +18,6 @@ from src.adapters.auth import get_current_active_user, require_role
 from src.core.compliance.base import FourEyesRequest
 from src.core.entities.base import User, UserRole
 from src.services.compliance_service import ComplianceService
-
 
 router = APIRouter(
     prefix="/api/v1/compliance",

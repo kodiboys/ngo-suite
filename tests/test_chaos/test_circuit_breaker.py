@@ -24,7 +24,7 @@ class TestCircuitBreakerChaos:
             success_threshold=2,
             timeout_seconds=2,
             half_open_max_calls=2,
-            rolling_window_seconds=10
+            rolling_window_seconds=10,
         )
 
     @pytest.mark.asyncio
@@ -62,7 +62,9 @@ class TestCircuitBreakerChaos:
         assert status.state == CircuitBreakerState.CLOSED
 
     @pytest.mark.asyncio
-    async def test_circuit_breaker_reopens_on_half_open_failure(self, redis_client, circuit_breaker_config):
+    async def test_circuit_breaker_reopens_on_half_open_failure(
+        self, redis_client, circuit_breaker_config
+    ):
         """Test: Circuit öffnet wieder bei Fehler in Half-Open"""
         breaker = CircuitBreaker(circuit_breaker_config, redis_client)
 
@@ -116,7 +118,7 @@ class TestChaosEngineering:
         """Test: Datenbank-Ausfall während Transaktion"""
         from sqlalchemy.exc import SQLAlchemyError
 
-        with patch('sqlalchemy.ext.asyncio.AsyncSession.commit') as mock_commit:
+        with patch("sqlalchemy.ext.asyncio.AsyncSession.commit") as mock_commit:
             # Simuliere Datenbankfehler
             mock_commit.side_effect = SQLAlchemyError("Database connection lost")
 
@@ -136,7 +138,7 @@ class TestChaosEngineering:
         from src.core.rate_limiting.redis_limiter import SlidingWindowRateLimiter
 
         # Simuliere Redis-Ausfall
-        with patch('redis.asyncio.Redis.eval') as mock_eval:
+        with patch("redis.asyncio.Redis.eval") as mock_eval:
             mock_eval.side_effect = ConnectionError("Redis unavailable")
 
             limiter = SlidingWindowRateLimiter(redis_client)
@@ -144,7 +146,7 @@ class TestChaosEngineering:
                 scope=RateLimitScope.IP,
                 strategy=RateLimitStrategy.SLIDING_WINDOW,
                 limit=100,
-                window_seconds=60
+                window_seconds=60,
             )
 
             # Fail-Open: Bei Redis-Fehler sollte Request erlaubt sein
@@ -157,7 +159,7 @@ class TestChaosEngineering:
         """Test: Timeout bei externer API (Stripe)"""
         import httpx
 
-        with patch('httpx.AsyncClient.post') as mock_post:
+        with patch("httpx.AsyncClient.post") as mock_post:
             mock_post.side_effect = httpx.TimeoutException("Request timeout")
 
             # Versuche Zahlung zu erstellen
@@ -168,9 +170,9 @@ class TestChaosEngineering:
                     "currency": "EUR",
                     "payment_method": "credit_card",
                     "donor_email": "test@example.com",
-                    "project_id": str(uuid4())
+                    "project_id": str(uuid4()),
                 },
-                headers=auth_headers
+                headers=auth_headers,
             )
 
             # Sollte fehlschlagen, aber nicht crashen

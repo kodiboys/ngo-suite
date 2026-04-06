@@ -17,6 +17,7 @@ from src.ports.social_base import (
 
 logger = logging.getLogger(__name__)
 
+
 class LinkedInProvider(SocialProviderInterface):
     """
     LinkedIn Provider Implementation
@@ -43,7 +44,7 @@ class LinkedInProvider(SocialProviderInterface):
             # Teste Authentifizierung
             response = await self.client.get(
                 "https://api.linkedin.com/v2/userinfo",
-                headers={"Authorization": f"Bearer {self.access_token}"}
+                headers={"Authorization": f"Bearer {self.access_token}"},
             )
 
             return response.status_code == 200
@@ -67,15 +68,11 @@ class LinkedInProvider(SocialProviderInterface):
                 "lifecycleState": "PUBLISHED",
                 "specificContent": {
                     "com.linkedin.ugc.ShareContent": {
-                        "shareCommentary": {
-                            "text": post.text
-                        },
-                        "shareMediaCategory": "NONE"
+                        "shareCommentary": {"text": post.text},
+                        "shareMediaCategory": "NONE",
                     }
                 },
-                "visibility": {
-                    "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
-                }
+                "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
             }
 
             # Füge Medien hinzu
@@ -85,7 +82,9 @@ class LinkedInProvider(SocialProviderInterface):
                     media_urn = await self.upload_media(media, None)
                     media_urns.append(media_urn)
 
-                post_data["specificContent"]["com.linkedin.ugc.ShareContent"]["shareMediaCategory"] = "IMAGE"
+                post_data["specificContent"]["com.linkedin.ugc.ShareContent"][
+                    "shareMediaCategory"
+                ] = "IMAGE"
                 post_data["specificContent"]["com.linkedin.ugc.ShareContent"]["media"] = [
                     {"status": "READY", "media": media_urn} for media_urn in media_urns
                 ]
@@ -96,13 +95,13 @@ class LinkedInProvider(SocialProviderInterface):
                 json=post_data,
                 headers={
                     "Authorization": f"Bearer {self.access_token}",
-                    "Content-Type": "application/json"
-                }
+                    "Content-Type": "application/json",
+                },
             )
             response.raise_for_status()
 
             result = response.json()
-            post.platform_post_id = result['id']
+            post.platform_post_id = result["id"]
             post.status = PostStatus.PUBLISHED
             post.published_at = datetime.utcnow()
 
@@ -122,7 +121,7 @@ class LinkedInProvider(SocialProviderInterface):
 
             response = await self.client.delete(
                 f"https://api.linkedin.com/v2/ugcPosts/{platform_post_id}",
-                headers={"Authorization": f"Bearer {self.access_token}"}
+                headers={"Authorization": f"Bearer {self.access_token}"},
             )
 
             return response.status_code == 204
@@ -131,24 +130,26 @@ class LinkedInProvider(SocialProviderInterface):
             logger.error(f"Failed to delete LinkedIn post: {e}")
             return False
 
-    async def get_post_stats(self, platform_post_id: str, account: SocialMediaAccount) -> dict[str, int]:
+    async def get_post_stats(
+        self, platform_post_id: str, account: SocialMediaAccount
+    ) -> dict[str, int]:
         """Holt LinkedIn Post Analytics"""
         try:
             await self.authenticate(account)
 
             response = await self.client.get(
                 f"https://api.linkedin.com/v2/socialActions/{platform_post_id}",
-                headers={"Authorization": f"Bearer {self.access_token}"}
+                headers={"Authorization": f"Bearer {self.access_token}"},
             )
             response.raise_for_status()
 
             data = response.json()
 
             return {
-                'like_count': data.get('likesSummary', {}).get('totalLikes', 0),
-                'comment_count': data.get('commentsSummary', {}).get('totalComments', 0),
-                'share_count': data.get('sharesSummary', {}).get('totalShares', 0),
-                'impression_count': 0  # Erfordert spezielle Insights API
+                "like_count": data.get("likesSummary", {}).get("totalLikes", 0),
+                "comment_count": data.get("commentsSummary", {}).get("totalComments", 0),
+                "share_count": data.get("sharesSummary", {}).get("totalShares", 0),
+                "impression_count": 0,  # Erfordert spezielle Insights API
             }
 
         except Exception as e:
@@ -168,25 +169,25 @@ class LinkedInProvider(SocialProviderInterface):
                         "serviceRelationships": [
                             {
                                 "relationshipType": "OWNER",
-                                "identifier": "urn:li:userGeneratedContent"
+                                "identifier": "urn:li:userGeneratedContent",
                             }
-                        ]
+                        ],
                     }
                 },
-                headers={"Authorization": f"Bearer {self.access_token}"}
+                headers={"Authorization": f"Bearer {self.access_token}"},
             )
             register_response.raise_for_status()
             upload_data = register_response.json()
 
-            upload_url = upload_data['value']['uploadMechanism']['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']['uploadUrl']
-            asset_urn = upload_data['value']['asset']
+            upload_url = upload_data["value"]["uploadMechanism"][
+                "com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"
+            ]["uploadUrl"]
+            asset_urn = upload_data["value"]["asset"]
 
             # 2. Upload Media
             if media.file_bytes:
                 upload_response = await self.client.put(
-                    upload_url,
-                    content=media.file_bytes,
-                    headers={"Content-Type": "image/jpeg"}
+                    upload_url, content=media.file_bytes, headers={"Content-Type": "image/jpeg"}
                 )
             elif media.url:
                 async with httpx.AsyncClient() as http_client:
@@ -194,7 +195,7 @@ class LinkedInProvider(SocialProviderInterface):
                     upload_response = await self.client.put(
                         upload_url,
                         content=media_response.content,
-                        headers={"Content-Type": "image/jpeg"}
+                        headers={"Content-Type": "image/jpeg"},
                     )
             else:
                 raise ValueError("No media data provided")
@@ -216,17 +217,17 @@ class LinkedInProvider(SocialProviderInterface):
                     "grant_type": "refresh_token",
                     "refresh_token": account.refresh_token,
                     "client_id": self.client_id,
-                    "client_secret": self.client_secret
-                }
+                    "client_secret": self.client_secret,
+                },
             )
 
             if response.status_code == 200:
                 data = response.json()
-                account.access_token = data['access_token']
-                if 'refresh_token' in data:
-                    account.refresh_token = data['refresh_token']
+                account.access_token = data["access_token"]
+                if "refresh_token" in data:
+                    account.refresh_token = data["refresh_token"]
                 account.token_expires_at = datetime.utcnow().replace(
-                    hour=datetime.utcnow().hour + (data.get('expires_in', 5184000) / 3600)
+                    hour=datetime.utcnow().hour + (data.get("expires_in", 5184000) / 3600)
                 )
             else:
                 raise Exception(f"Token refresh failed: {response.text}")

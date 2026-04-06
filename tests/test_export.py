@@ -15,6 +15,7 @@ from src.services.export_service import ExportService
 
 # ==================== Unit Tests ====================
 
+
 @pytest.mark.asyncio
 async def test_export_donations_to_excel():
     """Test Spendenexport nach Excel"""
@@ -32,7 +33,7 @@ async def test_export_donations_to_excel():
             donation_receipt_generated=True,
             is_pseudonymized=False,
             donor_email_pseudonym="hash@example.com",
-            donor_name_encrypted="Test Donor"
+            donor_name_encrypted="Test Donor",
         )
     ]
 
@@ -43,15 +44,13 @@ async def test_export_donations_to_excel():
     service = ExportService(mock_session)
 
     excel_data = await service.export_donations(
-        start_date=datetime(2024, 1, 1),
-        end_date=datetime(2024, 1, 31),
-        format="excel"
+        start_date=datetime(2024, 1, 1), end_date=datetime(2024, 1, 31), format="excel"
     )
 
     assert isinstance(excel_data, bytes)
     assert len(excel_data) > 0
     # Excel magic number
-    assert excel_data[:4] == b'PK\x03\x04'
+    assert excel_data[:4] == b"PK\x03\x04"
 
 
 @pytest.mark.asyncio
@@ -69,7 +68,7 @@ async def test_export_donations_to_csv():
             payment_provider="stripe",
             payment_status="succeeded",
             donation_receipt_generated=True,
-            is_pseudonymized=False
+            is_pseudonymized=False,
         )
     ]
 
@@ -80,13 +79,11 @@ async def test_export_donations_to_csv():
     service = ExportService(mock_session)
 
     csv_data = await service.export_donations(
-        start_date=datetime(2024, 1, 1),
-        end_date=datetime(2024, 1, 31),
-        format="csv"
+        start_date=datetime(2024, 1, 1), end_date=datetime(2024, 1, 31), format="csv"
     )
 
     assert isinstance(csv_data, bytes)
-    csv_str = csv_data.decode('utf-8-sig')
+    csv_str = csv_data.decode("utf-8-sig")
     assert "Spenden-ID" in csv_str
     assert "100.00" in csv_str
 
@@ -104,7 +101,7 @@ async def test_dsgvo_export():
         created_at=datetime(2024, 1, 1),
         last_login_at=datetime(2024, 1, 15),
         consent_given_at=datetime(2024, 1, 1),
-        is_pseudonymized=False
+        is_pseudonymized=False,
     )
 
     mock_result = AsyncMock()
@@ -113,20 +110,19 @@ async def test_dsgvo_export():
 
     service = ExportService(mock_session)
 
-    json_data = await service.export_dsgvo_data(
-        user_id=uuid4(),
-        format="json"
-    )
+    json_data = await service.export_dsgvo_data(user_id=uuid4(), format="json")
 
     assert isinstance(json_data, bytes)
     import json
-    data = json.loads(json_data.decode('utf-8'))
+
+    data = json.loads(json_data.decode("utf-8"))
     assert "user" in data
     assert "donations" in data
     assert data["user"]["email"] == "test@example.com"
 
 
 # ==================== Integration Tests ====================
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
@@ -154,16 +150,12 @@ from hypothesis import strategies as st
 
 @given(
     amount=st.decimals(min_value=0.01, max_value=100000, places=2),
-    year=st.integers(min_value=2020, max_value=2025)
+    year=st.integers(min_value=2020, max_value=2025),
 )
 def test_export_data_types(amount, year):
     """Test: Export-Daten haben korrekte Typen"""
 
-    export_data = {
-        "amount": float(amount),
-        "year": year,
-        "currency": "EUR"
-    }
+    export_data = {"amount": float(amount), "year": year, "currency": "EUR"}
 
     assert isinstance(export_data["amount"], float)
     assert isinstance(export_data["year"], int)
@@ -171,6 +163,7 @@ def test_export_data_types(amount, year):
 
 
 # ==================== Performance Tests ====================
+
 
 @pytest.mark.benchmark
 def test_csv_export_benchmark(benchmark):
@@ -186,7 +179,7 @@ def test_csv_export_benchmark(benchmark):
         writer = csv.DictWriter(output, fieldnames=["id", "name", "amount"])
         writer.writeheader()
         writer.writerows(data)
-        return output.getvalue().encode('utf-8')
+        return output.getvalue().encode("utf-8")
 
     result = benchmark(export_csv)
     assert len(result) > 0

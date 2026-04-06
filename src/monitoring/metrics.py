@@ -23,154 +23,102 @@ logger = logging.getLogger(__name__)
 
 # HTTP Request Metrics
 http_requests_total = Counter(
-    'http_requests_total',
-    'Total HTTP requests',
-    ['method', 'endpoint', 'status']
+    "http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"]
 )
 
 http_request_duration_seconds = Histogram(
-    'http_request_duration_seconds',
-    'HTTP request duration in seconds',
-    ['method', 'endpoint'],
-    buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
+    "http_request_duration_seconds",
+    "HTTP request duration in seconds",
+    ["method", "endpoint"],
+    buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0],
 )
 
 http_requests_in_progress = Gauge(
-    'http_requests_in_progress',
-    'HTTP requests currently in progress',
-    ['method']
+    "http_requests_in_progress", "HTTP requests currently in progress", ["method"]
 )
 
 # Database Metrics
 db_query_duration_seconds = Histogram(
-    'db_query_duration_seconds',
-    'Database query duration in seconds',
-    ['query_type'],
-    buckets=[0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0]
+    "db_query_duration_seconds",
+    "Database query duration in seconds",
+    ["query_type"],
+    buckets=[0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0],
 )
 
 db_pool_connections = Gauge(
-    'db_pool_connections',
-    'Database pool connections',
-    ['state']  # active, idle, total
+    "db_pool_connections", "Database pool connections", ["state"]  # active, idle, total
 )
 
 # Business Metrics
 donations_total = Counter(
-    'donations_total',
-    'Total number of donations',
-    ['status', 'payment_provider']
+    "donations_total", "Total number of donations", ["status", "payment_provider"]
 )
 
 donations_amount_total = Counter(
-    'donations_amount_total',
-    'Total donation amount in EUR',
-    ['currency']
+    "donations_amount_total", "Total donation amount in EUR", ["currency"]
 )
 
-projects_active = Gauge(
-    'projects_active',
-    'Number of active projects'
-)
+projects_active = Gauge("projects_active", "Number of active projects")
 
 inventory_items_total = Gauge(
-    'inventory_items_total',
-    'Total number of inventory items',
-    ['category']
+    "inventory_items_total", "Total number of inventory items", ["category"]
 )
 
-low_stock_items = Gauge(
-    'low_stock_items',
-    'Number of items with low stock'
-)
+low_stock_items = Gauge("low_stock_items", "Number of items with low stock")
 
 # Compliance Metrics
-four_eyes_pending = Gauge(
-    'four_eyes_pending',
-    'Number of pending four-eyes approvals'
-)
+four_eyes_pending = Gauge("four_eyes_pending", "Number of pending four-eyes approvals")
 
 money_laundering_alerts = Counter(
-    'money_laundering_alerts',
-    'Number of money laundering alerts',
-    ['risk_level']
+    "money_laundering_alerts", "Number of money laundering alerts", ["risk_level"]
 )
 
 # Payment Metrics
-payment_success_total = Counter(
-    'payment_success_total',
-    'Successful payments',
-    ['provider']
-)
+payment_success_total = Counter("payment_success_total", "Successful payments", ["provider"])
 
 payment_failure_total = Counter(
-    'payment_failure_total',
-    'Failed payments',
-    ['provider', 'error_type']
+    "payment_failure_total", "Failed payments", ["provider", "error_type"]
 )
 
 payment_duration_seconds = Histogram(
-    'payment_duration_seconds',
-    'Payment processing duration',
-    ['provider'],
-    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0]
+    "payment_duration_seconds",
+    "Payment processing duration",
+    ["provider"],
+    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0],
 )
 
 # Rate Limiting Metrics
-rate_limit_hits = Counter(
-    'rate_limit_hits',
-    'Rate limit hits',
-    ['scope', 'endpoint']
-)
+rate_limit_hits = Counter("rate_limit_hits", "Rate limit hits", ["scope", "endpoint"])
 
-rate_limit_remaining = Gauge(
-    'rate_limit_remaining',
-    'Remaining rate limit quota',
-    ['scope', 'key']
-)
+rate_limit_remaining = Gauge("rate_limit_remaining", "Remaining rate limit quota", ["scope", "key"])
 
 # Circuit Breaker Metrics
 circuit_breaker_state = Gauge(
-    'circuit_breaker_state',
-    'Circuit breaker state (0=closed, 1=open, 2=half_open)',
-    ['service']
+    "circuit_breaker_state", "Circuit breaker state (0=closed, 1=open, 2=half_open)", ["service"]
 )
 
 circuit_breaker_failures = Counter(
-    'circuit_breaker_failures',
-    'Circuit breaker failures',
-    ['service']
+    "circuit_breaker_failures", "Circuit breaker failures", ["service"]
 )
 
 # Cache Metrics
-cache_hits = Counter(
-    'cache_hits_total',
-    'Cache hits',
-    ['cache_name']
-)
+cache_hits = Counter("cache_hits_total", "Cache hits", ["cache_name"])
 
-cache_misses = Counter(
-    'cache_misses_total',
-    'Cache misses',
-    ['cache_name']
-)
+cache_misses = Counter("cache_misses_total", "Cache misses", ["cache_name"])
 
 # Background Task Metrics
-celery_tasks_total = Counter(
-    'celery_tasks_total',
-    'Celery tasks executed',
-    ['task_name', 'status']
-)
+celery_tasks_total = Counter("celery_tasks_total", "Celery tasks executed", ["task_name", "status"])
 
 celery_task_duration_seconds = Histogram(
-    'celery_task_duration_seconds',
-    'Celery task duration',
-    ['task_name'],
-    buckets=[0.1, 0.5, 1.0, 5.0, 10.0, 30.0, 60.0]
+    "celery_task_duration_seconds",
+    "Celery task duration",
+    ["task_name"],
+    buckets=[0.1, 0.5, 1.0, 5.0, 10.0, 30.0, 60.0],
 )
 
 
 # ==================== Prometheus Middleware ====================
+
 
 class PrometheusMiddleware(BaseHTTPMiddleware):
     """Middleware für Prometheus Metriken"""
@@ -189,26 +137,17 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
             status = response.status_code
 
             # Record metrics
-            http_requests_total.labels(
-                method=method,
-                endpoint=path,
-                status=status
-            ).inc()
+            http_requests_total.labels(method=method, endpoint=path, status=status).inc()
 
-            http_request_duration_seconds.labels(
-                method=method,
-                endpoint=path
-            ).observe(time.time() - start_time)
+            http_request_duration_seconds.labels(method=method, endpoint=path).observe(
+                time.time() - start_time
+            )
 
             return response
 
         except Exception:
             # Record error
-            http_requests_total.labels(
-                method=method,
-                endpoint=path,
-                status=500
-            ).inc()
+            http_requests_total.labels(method=method, endpoint=path, status=500).inc()
             raise
 
         finally:
@@ -216,6 +155,7 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
 
 
 # ==================== OpenTelemetry Setup ====================
+
 
 def setup_opentelemetry(app, db_engine, redis_client):
     """Setup OpenTelemetry für Distributed Tracing"""
@@ -234,16 +174,10 @@ def setup_opentelemetry(app, db_engine, redis_client):
     FastAPIInstrumentor.instrument_app(app)
 
     # Instrument SQLAlchemy
-    SQLAlchemyInstrumentor().instrument(
-        engine=db_engine,
-        tracer_provider=tracer_provider
-    )
+    SQLAlchemyInstrumentor().instrument(engine=db_engine, tracer_provider=tracer_provider)
 
     # Instrument Redis
-    RedisInstrumentor().instrument(
-        redis_client=redis_client,
-        tracer_provider=tracer_provider
-    )
+    RedisInstrumentor().instrument(redis_client=redis_client, tracer_provider=tracer_provider)
 
     # Instrument HTTPX
     HTTPXClientInstrumentor().instrument(tracer_provider=tracer_provider)
@@ -255,15 +189,14 @@ def setup_opentelemetry(app, db_engine, redis_client):
 
 # ==================== Metrics Endpoint ====================
 
+
 async def metrics_endpoint(request: Request) -> Response:
     """Prometheus Metrics Endpoint"""
-    return Response(
-        content=generate_latest(REGISTRY),
-        media_type="text/plain"
-    )
+    return Response(content=generate_latest(REGISTRY), media_type="text/plain")
 
 
 # ==================== Business Metrics Recording ====================
+
 
 class MetricsRecorder:
     """Helper für Business Metrics Recording"""
@@ -276,12 +209,16 @@ class MetricsRecorder:
             donations_amount_total.labels(currency="EUR").inc(amount)
 
     @staticmethod
-    def record_payment(provider: str, success: bool, error_type: str = None, duration: float = None):
+    def record_payment(
+        provider: str, success: bool, error_type: str = None, duration: float = None
+    ):
         """Record payment metrics"""
         if success:
             payment_success_total.labels(provider=provider).inc()
         else:
-            payment_failure_total.labels(provider=provider, error_type=error_type or "unknown").inc()
+            payment_failure_total.labels(
+                provider=provider, error_type=error_type or "unknown"
+            ).inc()
 
         if duration:
             payment_duration_seconds.labels(provider=provider).observe(duration)

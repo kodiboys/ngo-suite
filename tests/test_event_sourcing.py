@@ -17,6 +17,7 @@ from src.core.events.event_store import (
 
 # ==================== Unit Tests ====================
 
+
 @pytest.mark.asyncio
 async def test_event_append():
     """Test Event Append mit Optimistic Locking"""
@@ -38,7 +39,7 @@ async def test_event_append():
         event_type=EventType.DONATION_CREATED,
         data={"amount": 100},
         user_id=uuid4(),
-        metadata={}
+        metadata={},
     )
 
     assert event.event_type == EventType.DONATION_CREATED
@@ -68,7 +69,7 @@ async def test_optimistic_locking():
             event_type=EventType.DONATION_CREATED,
             data={"amount": 100},
             user_id=uuid4(),
-            expected_version=3  # Erwartet Version 3, aber aktuell ist 5
+            expected_version=3,  # Erwartet Version 3, aber aktuell ist 5
         )
 
 
@@ -92,7 +93,7 @@ async def test_event_replay():
                 metadata={},
                 user_id=uuid4(),
                 timestamp=datetime.utcnow(),
-                sequence_number=1
+                sequence_number=1,
             )
         )
     ]
@@ -108,15 +109,14 @@ async def test_event_replay():
         return state
 
     state = await service.replay_aggregate(
-        aggregate_id=uuid4(),
-        aggregate_type="Donation",
-        event_handler=event_handler
+        aggregate_id=uuid4(), aggregate_type="Donation", event_handler=event_handler
     )
 
     assert state["amount"] == 100
 
 
 # ==================== Integration Tests ====================
+
 
 @pytest.mark.integration
 @pytest.mark.asyncio
@@ -134,7 +134,7 @@ async def test_full_event_sourcing_flow(db_session):
         aggregate_type="Donation",
         event_type=EventType.DONATION_CREATED,
         data={"amount": 100, "project_id": str(uuid4()), "donor_email": "test@example.com"},
-        user_id=uuid4()
+        user_id=uuid4(),
     )
 
     event2 = await event_store.append_event(
@@ -143,7 +143,7 @@ async def test_full_event_sourcing_flow(db_session):
         event_type=EventType.DONATION_CONFIRMED,
         data={"payment_intent_id": "pi_123"},
         user_id=uuid4(),
-        expected_version=1
+        expected_version=1,
     )
 
     # 2. Get Events
@@ -160,6 +160,7 @@ async def test_full_event_sourcing_flow(db_session):
 
 # ==================== Performance Tests ====================
 
+
 @pytest.mark.benchmark
 def test_event_serialization_benchmark(benchmark):
     """Benchmark: Event Serialisierung"""
@@ -174,12 +175,13 @@ def test_event_serialization_benchmark(benchmark):
         metadata={"ip": "127.0.0.1", "user_agent": "test"},
         user_id=uuid4(),
         timestamp=datetime.utcnow(),
-        sequence_number=1
+        sequence_number=1,
     )
 
     def serialize():
         import json
         from dataclasses import asdict
+
         return json.dumps(asdict(event), default=str)
 
     result = benchmark(serialize)
@@ -194,7 +196,7 @@ from hypothesis import strategies as st
 
 @given(
     amount=st.decimals(min_value=0.01, max_value=100000, places=2),
-    sequence=st.integers(min_value=1, max_value=1000)
+    sequence=st.integers(min_value=1, max_value=1000),
 )
 def test_event_hash_property(amount, sequence):
     """Test: Event Hash ist deterministisch und eindeutig"""
@@ -209,7 +211,7 @@ def test_event_hash_property(amount, sequence):
         metadata={},
         user_id=uuid4(),
         timestamp=datetime.utcnow(),
-        sequence_number=sequence
+        sequence_number=sequence,
     )
 
     event2 = DomainEvent(
@@ -222,14 +224,12 @@ def test_event_hash_property(amount, sequence):
         metadata=event1.metadata,
         user_id=event1.user_id,
         timestamp=event1.timestamp,
-        sequence_number=event1.sequence_number
+        sequence_number=event1.sequence_number,
     )
 
     # Gleiche Events -> Gleiche Hashes
     assert event1.compute_hash() == event2.compute_hash()
 
     # Unterschiedliche Sequence -> Unterschiedliche Hashes
-    event3 = DomainEvent(
-        **{**event1.__dict__, "sequence_number": sequence + 1}
-    )
+    event3 = DomainEvent(**{**event1.__dict__, "sequence_number": sequence + 1})
     assert event1.compute_hash() != event3.compute_hash()

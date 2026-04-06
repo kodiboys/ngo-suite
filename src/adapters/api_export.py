@@ -3,24 +3,23 @@
 # REST Endpoints für CSV, Excel, JSON, DATEV Exporte, DSGVO, Finanzberichte, Backup & Bulk
 # Version: 3.0 - Erweitert um Backup‑Management & Bulk‑Export
 
-from typing import Optional, List
 from datetime import datetime, timezone
-
-from src.adapters.auth import get_current_active_user, require_role
-from src.core.entities.base import User, UserRole
-from src.core.config import settings
-from src.services.backup_service import WasabiBackupService
-from src.services.export_service import ExportService
-from fastapi import APIRouter, Depends, Response, HTTPException, Request
+from typing import List, Optional
 from uuid import UUID
 
-router = APIRouter(
-    prefix="/api/v1/export",
-    tags=["export"]
-)
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+
+from src.adapters.auth import get_current_active_user, require_role
+from src.core.config import settings
+from src.core.entities.base import User, UserRole
+from src.services.backup_service import WasabiBackupService
+from src.services.export_service import ExportService
+
+router = APIRouter(prefix="/api/v1/export", tags=["export"])
 
 
 # ==================== Dependency-Injection ====================
+
 
 def get_export_service(request: Request) -> ExportService:
     """
@@ -30,11 +29,12 @@ def get_export_service(request: Request) -> ExportService:
     # Sicherer Zugriff auf die App-Ressourcen
     db_session_factory = request.app.state.db_session_factory
     redis_client = request.app.state.redis
-    
+
     return ExportService(
         session_factory=db_session_factory,
         redis_client=redis_client,
     )
+
 
 def get_backup_service(request: Request) -> WasabiBackupService:
     """
@@ -49,6 +49,7 @@ def get_backup_service(request: Request) -> WasabiBackupService:
 
 
 # ==================== Spenden Exporte ====================
+
 
 @router.get("/donations")
 async def export_donations(
@@ -106,6 +107,7 @@ async def export_donations(
 
 # ==================== Projekte-Export ====================
 
+
 @router.get("/projects")
 async def export_projects(
     status: Optional[str] = None,
@@ -131,13 +133,12 @@ async def export_projects(
     return Response(
         content=data,
         media_type="application/octet-stream",
-        headers={
-            "Content-Disposition": f"attachment; filename=projekte_export.{extension}"
-        },
+        headers={"Content-Disposition": f"attachment; filename=projekte_export.{extension}"},
     )
 
 
 # ==================== DSGVO Exporte ====================
+
 
 @router.get("/dsgvo/my-data")
 async def export_my_data(
@@ -175,6 +176,7 @@ async def export_my_data(
 
 
 # ==================== Audit Log Exporte ====================
+
 
 @router.get("/audit-log")
 async def export_audit_log(
@@ -224,6 +226,7 @@ async def export_audit_log(
 
 # ==================== Finanzberichte ====================
 
+
 @router.get("/financial-report/{year}")
 async def export_financial_report(
     year: int,
@@ -249,18 +252,19 @@ async def export_financial_report(
     }
 
     extension = extensions.get(format, "xlsx")
-    media_type = media_types.get(format, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    media_type = media_types.get(
+        format, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
     return Response(
         content=data,
         media_type=media_type,
-        headers={
-            "Content-Disposition": f"attachment; filename=jahresbericht_{year}.{extension}"
-        },
+        headers={"Content-Disposition": f"attachment; filename=jahresbericht_{year}.{extension}"},
     )
 
 
 # ==================== Backup Management ====================
+
 
 @router.post("/backup/create")
 async def create_backup(
@@ -354,6 +358,7 @@ async def verify_backup(
 
 
 # ==================== Bulk Export ====================
+
 
 @router.post("/bulk")
 async def create_bulk_export(

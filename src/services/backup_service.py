@@ -17,7 +17,6 @@ import boto3
 from botocore.client import Config
 from botocore.exceptions import ClientError
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -39,7 +38,7 @@ class WasabiBackupService:
         secret_key: str,
         bucket_name: str,
         endpoint_url: str = "https://s3.wasabisys.com",
-        encryption_key: str | None = None
+        encryption_key: str | None = None,
     ):
         self.access_key = access_key
         self.secret_key = secret_key
@@ -49,11 +48,11 @@ class WasabiBackupService:
 
         # Initialize S3 client
         self.s3_client = boto3.client(
-            's3',
+            "s3",
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
             endpoint_url=endpoint_url,
-            config=Config(signature_version='s3v4')
+            config=Config(signature_version="s3v4"),
         )
 
         # Ensure bucket exists
@@ -73,42 +72,38 @@ class WasabiBackupService:
     def _set_lifecycle_policy(self):
         """Setzt Lifecycle Policy für automatische Löschung"""
         lifecycle_config = {
-            'Rules': [
+            "Rules": [
                 {
-                    'Id': 'daily_backups_retention',
-                    'Status': 'Enabled',
-                    'Prefix': 'daily/',
-                    'Expiration': {'Days': 30}  # 30 Tage Aufbewahrung
+                    "Id": "daily_backups_retention",
+                    "Status": "Enabled",
+                    "Prefix": "daily/",
+                    "Expiration": {"Days": 30},  # 30 Tage Aufbewahrung
                 },
                 {
-                    'Id': 'monthly_backups_retention',
-                    'Status': 'Enabled',
-                    'Prefix': 'monthly/',
-                    'Expiration': {'Days': 365}  # 12 Monate
+                    "Id": "monthly_backups_retention",
+                    "Status": "Enabled",
+                    "Prefix": "monthly/",
+                    "Expiration": {"Days": 365},  # 12 Monate
                 },
                 {
-                    'Id': 'yearly_backups_retention',
-                    'Status': 'Enabled',
-                    'Prefix': 'yearly/',
-                    'Expiration': {'Days': 2555}  # 7 Jahre (GoBD)
-                }
+                    "Id": "yearly_backups_retention",
+                    "Status": "Enabled",
+                    "Prefix": "yearly/",
+                    "Expiration": {"Days": 2555},  # 7 Jahre (GoBD)
+                },
             ]
         }
 
         try:
             self.s3_client.put_bucket_lifecycle_configuration(
-                Bucket=self.bucket_name,
-                LifecycleConfiguration=lifecycle_config
+                Bucket=self.bucket_name, LifecycleConfiguration=lifecycle_config
             )
             logger.info("Lifecycle policy configured")
         except Exception as e:
             logger.warning(f"Could not set lifecycle policy: {e}")
 
     async def create_full_backup(
-        self,
-        database_url: str,
-        backup_type: str = "daily",
-        user_id: UUID | None = None
+        self, database_url: str, backup_type: str = "daily", user_id: UUID | None = None
     ) -> dict[str, Any]:
         """
         Erstellt ein vollständiges Backup der Datenbank
@@ -148,7 +143,7 @@ class WasabiBackupService:
                 "size_bytes": os.path.getsize(final_file),
                 "checksum": checksum,
                 "encrypted": bool(self.encryption_key),
-                "database_version": await self._get_db_version(database_url)
+                "database_version": await self._get_db_version(database_url),
             }
 
             # 7. Metadata als JSON hochladen
@@ -165,7 +160,9 @@ class WasabiBackupService:
             # 9. Audit Log
             await self._log_backup_creation(backup_metadata, user_id)
 
-            logger.info(f"Full backup created successfully: {backup_id} ({backup_metadata['size_bytes'] / 1024 / 1024:.2f} MB)")
+            logger.info(
+                f"Full backup created successfully: {backup_id} ({backup_metadata['size_bytes'] / 1024 / 1024:.2f} MB)"
+            )
 
             return backup_metadata
 
@@ -178,7 +175,8 @@ class WasabiBackupService:
         # Parse database URL
         # postgresql://user:password@host:port/database
         import re
-        pattern = r'postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)'
+
+        pattern = r"postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)"
         match = re.match(pattern, database_url)
 
         if not match:
@@ -188,29 +186,31 @@ class WasabiBackupService:
 
         # Set PGPASSWORD environment variable
         env = os.environ.copy()
-        env['PGPASSWORD'] = password
+        env["PGPASSWORD"] = password
 
         # Run pg_dump
         cmd = [
-            'pg_dump',
-            '-h', host,
-            '-p', port,
-            '-U', user,
-            '-d', database,
-            '-F', 'p',  # Plain SQL format
-            '--clean',  # Clean (drop) objects before creating
-            '--if-exists',
-            '--no-owner',
-            '--no-privileges'
+            "pg_dump",
+            "-h",
+            host,
+            "-p",
+            port,
+            "-U",
+            user,
+            "-d",
+            database,
+            "-F",
+            "p",  # Plain SQL format
+            "--clean",  # Clean (drop) objects before creating
+            "--if-exists",
+            "--no-owner",
+            "--no-privileges",
         ]
 
         try:
-            with open(output_file, 'w') as f:
+            with open(output_file, "w") as f:
                 process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=f,
-                    stderr=asyncio.subprocess.PIPE,
-                    env=env
+                    *cmd, stdout=f, stderr=asyncio.subprocess.PIPE, env=env
                 )
                 _, stderr = await process.communicate()
 
@@ -221,23 +221,28 @@ class WasabiBackupService:
 
         finally:
             # Clean up password from environment
-            env.pop('PGPASSWORD', None)
+            env.pop("PGPASSWORD", None)
 
     async def _compress_file(self, input_file: str, output_file: str):
         """Komprimiert Datei mit gzip"""
-        with open(input_file, 'rb') as f_in:
-            with gzip.open(output_file, 'wb', compresslevel=9) as f_out:
+        with open(input_file, "rb") as f_in:
+            with gzip.open(output_file, "wb", compresslevel=9) as f_out:
                 shutil.copyfileobj(f_in, f_out)
         logger.info(f"File compressed: {output_file}")
 
     async def _encrypt_file(self, input_file: str, output_file: str):
         """Verschlüsselt Datei mit AES-256 (openssl)"""
         cmd = [
-            'openssl', 'enc', '-aes-256-cbc',
-            '-salt',
-            '-in', input_file,
-            '-out', output_file,
-            '-pass', f'pass:{self.encryption_key}'
+            "openssl",
+            "enc",
+            "-aes-256-cbc",
+            "-salt",
+            "-in",
+            input_file,
+            "-out",
+            output_file,
+            "-pass",
+            f"pass:{self.encryption_key}",
         ]
 
         process = await asyncio.create_subprocess_exec(*cmd)
@@ -251,10 +256,16 @@ class WasabiBackupService:
     async def _decrypt_file(self, input_file: str, output_file: str):
         """Entschlüsselt Datei"""
         cmd = [
-            'openssl', 'enc', '-d', '-aes-256-cbc',
-            '-in', input_file,
-            '-out', output_file,
-            '-pass', f'pass:{self.encryption_key}'
+            "openssl",
+            "enc",
+            "-d",
+            "-aes-256-cbc",
+            "-in",
+            input_file,
+            "-out",
+            output_file,
+            "-pass",
+            f"pass:{self.encryption_key}",
         ]
 
         process = await asyncio.create_subprocess_exec(*cmd)
@@ -278,14 +289,9 @@ class WasabiBackupService:
         try:
             extra_args = {}
             if self.encryption_key:
-                extra_args['ServerSideEncryption'] = 'AES256'
+                extra_args["ServerSideEncryption"] = "AES256"
 
-            self.s3_client.upload_file(
-                file_path,
-                self.bucket_name,
-                s3_key,
-                ExtraArgs=extra_args
-            )
+            self.s3_client.upload_file(file_path, self.bucket_name, s3_key, ExtraArgs=extra_args)
             logger.info(f"Uploaded to S3: {s3_key}")
 
         except ClientError as e:
@@ -295,13 +301,14 @@ class WasabiBackupService:
     async def _upload_metadata(self, metadata: dict[str, Any], s3_key: str):
         """Uploadet Metadaten als JSON"""
         import json
+
         json_str = json.dumps(metadata, indent=2)
 
         self.s3_client.put_object(
             Bucket=self.bucket_name,
             Key=s3_key,
-            Body=json_str.encode('utf-8'),
-            ContentType='application/json'
+            Body=json_str.encode("utf-8"),
+            ContentType="application/json",
         )
 
     async def _get_db_version(self, database_url: str) -> str:
@@ -315,10 +322,7 @@ class WasabiBackupService:
         logger.info(f"Backup audit: {metadata['backup_id']} by {user_id}")
 
     async def restore_backup(
-        self,
-        backup_id: str,
-        database_url: str,
-        backup_type: str = "daily"
+        self, backup_id: str, database_url: str, backup_type: str = "daily"
     ) -> bool:
         """
         Stellt ein Backup wieder her
@@ -328,25 +332,21 @@ class WasabiBackupService:
             s3_key = f"{backup_type}/{backup_id}.backup"
             downloaded_file = f"/tmp/restore_{backup_id}.backup"
 
-            self.s3_client.download_file(
-                self.bucket_name,
-                s3_key,
-                downloaded_file
-            )
+            self.s3_client.download_file(self.bucket_name, s3_key, downloaded_file)
 
             # 2. Entschlüsseln (falls nötig)
-            if self.encryption_key and downloaded_file.endswith('.enc'):
-                decrypted_file = downloaded_file.replace('.enc', '')
+            if self.encryption_key and downloaded_file.endswith(".enc"):
+                decrypted_file = downloaded_file.replace(".enc", "")
                 await self._decrypt_file(downloaded_file, decrypted_file)
                 final_file = decrypted_file
             else:
                 final_file = downloaded_file
 
             # 3. Dekomprimieren
-            if final_file.endswith('.gz'):
-                decompressed_file = final_file.replace('.gz', '')
-                with gzip.open(final_file, 'rb') as f_in:
-                    with open(decompressed_file, 'wb') as f_out:
+            if final_file.endswith(".gz"):
+                decompressed_file = final_file.replace(".gz", "")
+                with gzip.open(final_file, "rb") as f_in:
+                    with open(decompressed_file, "wb") as f_out:
                         shutil.copyfileobj(f_in, f_out)
                 sql_file = decompressed_file
             else:
@@ -358,9 +358,9 @@ class WasabiBackupService:
             # Lade erwartete Prüfsumme aus Metadaten
             metadata_key = f"metadata/{backup_id}.json"
             response = self.s3_client.get_object(Bucket=self.bucket_name, Key=metadata_key)
-            metadata = json.loads(response['Body'].read().decode('utf-8'))
+            metadata = json.loads(response["Body"].read().decode("utf-8"))
 
-            if downloaded_checksum != metadata['checksum']:
+            if downloaded_checksum != metadata["checksum"]:
                 raise Exception("Checksum verification failed - backup may be corrupted")
 
             # 5. Datenbank wiederherstellen
@@ -368,9 +368,9 @@ class WasabiBackupService:
 
             # 6. Cleanup
             os.remove(downloaded_file)
-            if self.encryption_key and 'decrypted_file' in locals():
+            if self.encryption_key and "decrypted_file" in locals():
                 os.remove(decrypted_file)
-            if 'decompressed_file' in locals():
+            if "decompressed_file" in locals():
                 os.remove(decompressed_file)
             os.remove(sql_file)
 
@@ -384,7 +384,8 @@ class WasabiBackupService:
     async def _restore_postgres_dump(self, database_url: str, sql_file: str):
         """Stellt PostgreSQL Dump wieder her"""
         import re
-        pattern = r'postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)'
+
+        pattern = r"postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)"
         match = re.match(pattern, database_url)
 
         if not match:
@@ -393,18 +394,12 @@ class WasabiBackupService:
         user, password, host, port, database = match.groups()
 
         env = os.environ.copy()
-        env['PGPASSWORD'] = password
+        env["PGPASSWORD"] = password
 
         # Drop and recreate database
-        drop_cmd = [
-            'dropdb', '-h', host, '-p', port, '-U', user, '--if-exists', database
-        ]
-        create_cmd = [
-            'createdb', '-h', host, '-p', port, '-U', user, database
-        ]
-        restore_cmd = [
-            'psql', '-h', host, '-p', port, '-U', user, '-d', database, '-f', sql_file
-        ]
+        drop_cmd = ["dropdb", "-h", host, "-p", port, "-U", user, "--if-exists", database]
+        create_cmd = ["createdb", "-h", host, "-p", port, "-U", user, database]
+        restore_cmd = ["psql", "-h", host, "-p", port, "-U", user, "-d", database, "-f", sql_file]
 
         try:
             # Drop existing database
@@ -417,11 +412,7 @@ class WasabiBackupService:
 
             # Restore
             with open(sql_file) as f:
-                process = await asyncio.create_subprocess_exec(
-                    *restore_cmd,
-                    stdin=f,
-                    env=env
-                )
+                process = await asyncio.create_subprocess_exec(*restore_cmd, stdin=f, env=env)
                 await process.wait()
 
             if process.returncode != 0:
@@ -430,7 +421,7 @@ class WasabiBackupService:
             logger.info(f"Database restored from {sql_file}")
 
         finally:
-            env.pop('PGPASSWORD', None)
+            env.pop("PGPASSWORD", None)
 
     async def list_backups(self, backup_type: str = "daily") -> list[dict[str, Any]]:
         """Listet alle verfügbaren Backups auf"""
@@ -438,36 +429,34 @@ class WasabiBackupService:
 
         try:
             prefix = f"{backup_type}/"
-            response = self.s3_client.list_objects_v2(
-                Bucket=self.bucket_name,
-                Prefix=prefix
-            )
+            response = self.s3_client.list_objects_v2(Bucket=self.bucket_name, Prefix=prefix)
 
-            for obj in response.get('Contents', []):
+            for obj in response.get("Contents", []):
                 # Lade Metadaten
-                key = obj['Key']
-                backup_id = key.replace(prefix, '').replace('.backup', '')
+                key = obj["Key"]
+                backup_id = key.replace(prefix, "").replace(".backup", "")
 
                 metadata_key = f"metadata/{backup_id}.json"
                 try:
                     meta_response = self.s3_client.get_object(
-                        Bucket=self.bucket_name,
-                        Key=metadata_key
+                        Bucket=self.bucket_name, Key=metadata_key
                     )
-                    metadata = json.loads(meta_response['Body'].read().decode('utf-8'))
+                    metadata = json.loads(meta_response["Body"].read().decode("utf-8"))
                     backups.append(metadata)
                 except:
                     # Fallback: Nur Basis-Info
-                    backups.append({
-                        "backup_id": backup_id,
-                        "type": backup_type,
-                        "created_at": obj['LastModified'].isoformat(),
-                        "size_bytes": obj['Size'],
-                        "encrypted": False
-                    })
+                    backups.append(
+                        {
+                            "backup_id": backup_id,
+                            "type": backup_type,
+                            "created_at": obj["LastModified"].isoformat(),
+                            "size_bytes": obj["Size"],
+                            "encrypted": False,
+                        }
+                    )
 
             # Sort by date (newest first)
-            backups.sort(key=lambda x: x['created_at'], reverse=True)
+            backups.sort(key=lambda x: x["created_at"], reverse=True)
 
         except ClientError as e:
             logger.error(f"Failed to list backups: {e}")
@@ -478,11 +467,11 @@ class WasabiBackupService:
         """Löscht alte Backups (Retention Policy)"""
         cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
 
-        for backup_type in ['daily', 'monthly', 'yearly']:
+        for backup_type in ["daily", "monthly", "yearly"]:
             backups = await self.list_backups(backup_type)
 
             for backup in backups:
-                created_at = datetime.fromisoformat(backup['created_at'])
+                created_at = datetime.fromisoformat(backup["created_at"])
                 if created_at < cutoff_date:
                     # Lösche Backup und Metadaten
                     s3_key = f"{backup_type}/{backup['backup_id']}.backup"
@@ -499,7 +488,7 @@ class WasabiBackupService:
             # Lade Metadaten
             metadata_key = f"metadata/{backup_id}.json"
             response = self.s3_client.get_object(Bucket=self.bucket_name, Key=metadata_key)
-            metadata = json.loads(response['Body'].read().decode('utf-8'))
+            metadata = json.loads(response["Body"].read().decode("utf-8"))
 
             # Lade Backup und prüfe Prüfsumme
             s3_key = f"{backup_type}/{backup_id}.backup"
@@ -508,8 +497,8 @@ class WasabiBackupService:
             self.s3_client.download_file(self.bucket_name, s3_key, downloaded_file)
 
             # Dekomprimieren/Entschlüsseln für Prüfsumme
-            if downloaded_file.endswith('.gz'):
-                with gzip.open(downloaded_file, 'rb') as f_in:
+            if downloaded_file.endswith(".gz"):
+                with gzip.open(downloaded_file, "rb") as f_in:
                     content = f_in.read()
                     checksum = hashlib.sha256(content).hexdigest()
             else:
@@ -517,7 +506,7 @@ class WasabiBackupService:
 
             os.remove(downloaded_file)
 
-            return checksum == metadata['checksum']
+            return checksum == metadata["checksum"]
 
         except Exception as e:
             logger.error(f"Integrity check failed for {backup_id}: {e}")

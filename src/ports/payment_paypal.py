@@ -22,6 +22,7 @@ from src.ports.payment_base import (
 
 logger = logging.getLogger(__name__)
 
+
 class PayPalProvider(PaymentProviderInterface):
     """
     PayPal Payment Provider Implementation
@@ -31,8 +32,14 @@ class PayPalProvider(PaymentProviderInterface):
     - Automatic Token Refresh
     """
 
-    def __init__(self, client_id: str, client_secret: str, webhook_id: str,
-                 mode: str = "live", redis_client=None):
+    def __init__(
+        self,
+        client_id: str,
+        client_secret: str,
+        webhook_id: str,
+        mode: str = "live",
+        redis_client=None,
+    ):
         """
         Args:
             client_id: PayPal REST API Client ID
@@ -48,7 +55,9 @@ class PayPalProvider(PaymentProviderInterface):
         self.redis = redis_client
 
         # Base URL
-        self.base_url = "https://api-m.paypal.com" if mode == "live" else "https://api-m.sandbox.paypal.com"
+        self.base_url = (
+            "https://api-m.paypal.com" if mode == "live" else "https://api-m.sandbox.paypal.com"
+        )
 
         # HTTP Client
         self.client = httpx.AsyncClient(timeout=30.0)
@@ -72,9 +81,7 @@ class PayPalProvider(PaymentProviderInterface):
         # Hole neuen Token
         auth = httpx.BasicAuth(self.client_id, self.client_secret)
         response = await self.client.post(
-            f"{self.base_url}/v1/oauth2/token",
-            data={"grant_type": "client_credentials"},
-            auth=auth
+            f"{self.base_url}/v1/oauth2/token", data={"grant_type": "client_credentials"}, auth=auth
         )
         response.raise_for_status()
 
@@ -85,9 +92,7 @@ class PayPalProvider(PaymentProviderInterface):
         # Cache in Redis
         if self.redis:
             await self.redis.setex(
-                "paypal:access_token",
-                token_data["expires_in"] - 60,
-                self.access_token
+                "paypal:access_token", token_data["expires_in"] - 60, self.access_token
             )
 
         return self.access_token
@@ -100,45 +105,43 @@ class PayPalProvider(PaymentProviderInterface):
             # PayPal Order erstellen
             order_data = {
                 "intent": "CAPTURE",
-                "purchase_units": [{
-                    "amount": {
-                        "currency_code": request.currency,
-                        "value": str(request.amount),
-                        "breakdown": {
-                            "item_total": {
-                                "currency_code": request.currency,
-                                "value": str(request.amount)
-                            }
-                        }
-                    },
-                    "description": f"Donation to TrueAngels - Project {request.project_id}",
-                    "custom_id": str(request.project_id),
-                    "invoice_id": f"TA-{request.project_id}-{datetime.utcnow().timestamp()}"
-                }],
+                "purchase_units": [
+                    {
+                        "amount": {
+                            "currency_code": request.currency,
+                            "value": str(request.amount),
+                            "breakdown": {
+                                "item_total": {
+                                    "currency_code": request.currency,
+                                    "value": str(request.amount),
+                                }
+                            },
+                        },
+                        "description": f"Donation to TrueAngels - Project {request.project_id}",
+                        "custom_id": str(request.project_id),
+                        "invoice_id": f"TA-{request.project_id}-{datetime.utcnow().timestamp()}",
+                    }
+                ],
                 "application_context": {
                     "brand_name": "TrueAngels e.V.",
                     "landing_page": "BILLING",
                     "user_action": "PAY_NOW",
                     "return_url": request.success_url or "https://trueangels.de/donation/success",
-                    "cancel_url": request.cancel_url or "https://trueangels.de/donation/cancel"
-                }
+                    "cancel_url": request.cancel_url or "https://trueangels.de/donation/cancel",
+                },
             }
 
             # PayPal spezifische Metadata
-            order_data["purchase_units"][0]["payee"] = {
-                "email": "donations@trueangels.de"
-            }
+            order_data["purchase_units"][0]["payee"] = {"email": "donations@trueangels.de"}
 
             headers = {
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
-                "Prefer": "return=representation"
+                "Prefer": "return=representation",
             }
 
             response = await self.client.post(
-                f"{self.base_url}/v2/checkout/orders",
-                json=order_data,
-                headers=headers
+                f"{self.base_url}/v2/checkout/orders", json=order_data, headers=headers
             )
             response.raise_for_status()
             order = response.json()
@@ -160,45 +163,48 @@ class PayPalProvider(PaymentProviderInterface):
                 donor_email=request.donor_email,
                 donor_name=request.donor_name,
                 project_id=request.project_id,
-                metadata={
-                    "order_id": order["id"],
-                    "redirect_url": redirect_url
-                },
-                created_at=datetime.fromisoformat(order["create_time"].replace('Z', '+00:00'))
+                metadata={"order_id": order["id"], "redirect_url": redirect_url},
+                created_at=datetime.fromisoformat(order["create_time"].replace("Z", "+00:00")),
             )
 
         except httpx.HTTPError as e:
             logger.error(f"PayPal error creating order: {e}")
             raise PaymentProviderError(f"PayPal error: {str(e)}") from e
 
-    async def confirm_payment(self, payment_intent_id: str, payment_method_id: str = None) -> PaymentIntent:
+    async def confirm_payment(
+        self, payment_intent_id: str, payment_method_id: str = None
+    ) -> PaymentIntent:
         """Capturiert PayPal Order (Zahlung bestätigen)"""
         try:
             token = await self._get_access_token()
 
-            headers = {
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json"
-            }
+            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
             # Capture Order
             response = await self.client.post(
-                f"{self.base_url}/v2/checkout/orders/{payment_intent_id}/capture",
-                headers=headers
+                f"{self.base_url}/v2/checkout/orders/{payment_intent_id}/capture", headers=headers
             )
             response.raise_for_status()
             capture = response.json()
 
             # Status mapping
-            status = PaymentStatus.SUCCEEDED if capture.get("status") == "COMPLETED" else PaymentStatus.FAILED
+            status = (
+                PaymentStatus.SUCCEEDED
+                if capture.get("status") == "COMPLETED"
+                else PaymentStatus.FAILED
+            )
 
             return PaymentIntent(
                 id=payment_intent_id,
                 provider=PaymentProvider.PAYPAL,
-                amount=Decimal(capture["purchase_units"][0]["payments"]["captures"][0]["amount"]["value"]),
-                currency=capture["purchase_units"][0]["payments"]["captures"][0]["amount"]["currency_code"],
+                amount=Decimal(
+                    capture["purchase_units"][0]["payments"]["captures"][0]["amount"]["value"]
+                ),
+                currency=capture["purchase_units"][0]["payments"]["captures"][0]["amount"][
+                    "currency_code"
+                ],
                 status=status,
-                metadata=capture
+                metadata=capture,
             )
 
         except httpx.HTTPError as e:
@@ -212,8 +218,7 @@ class PayPalProvider(PaymentProviderInterface):
 
             headers = {"Authorization": f"Bearer {token}"}
             response = await self.client.get(
-                f"{self.base_url}/v2/checkout/orders/{payment_intent_id}",
-                headers=headers
+                f"{self.base_url}/v2/checkout/orders/{payment_intent_id}", headers=headers
             )
             response.raise_for_status()
             order = response.json()
@@ -223,7 +228,7 @@ class PayPalProvider(PaymentProviderInterface):
                 "CREATED": PaymentStatus.PENDING,
                 "APPROVED": PaymentStatus.PROCESSING,
                 "COMPLETED": PaymentStatus.SUCCEEDED,
-                "VOIDED": PaymentStatus.FAILED
+                "VOIDED": PaymentStatus.FAILED,
             }
 
             return PaymentIntent(
@@ -232,7 +237,7 @@ class PayPalProvider(PaymentProviderInterface):
                 amount=Decimal(order["purchase_units"][0]["amount"]["value"]),
                 currency=order["purchase_units"][0]["amount"]["currency_code"],
                 status=status_map.get(order["status"], PaymentStatus.PENDING),
-                metadata=order
+                metadata=order,
             )
 
         except httpx.HTTPError as e:
@@ -246,7 +251,12 @@ class PayPalProvider(PaymentProviderInterface):
 
             # Hole Capture ID
             order = await self.get_payment_status(refund_request.payment_intent_id)
-            capture_id = order.metadata.get("purchase_units", [{}])[0].get("payments", {}).get("captures", [{}])[0].get("id")
+            capture_id = (
+                order.metadata.get("purchase_units", [{}])[0]
+                .get("payments", {})
+                .get("captures", [{}])[0]
+                .get("id")
+            )
 
             if not capture_id:
                 raise PaymentProviderError("No capture found for refund")
@@ -254,20 +264,17 @@ class PayPalProvider(PaymentProviderInterface):
             refund_data = {
                 "amount": {
                     "currency_code": "EUR",
-                    "value": str(refund_request.amount) if refund_request.amount else "full"
+                    "value": str(refund_request.amount) if refund_request.amount else "full",
                 },
-                "note_to_payer": refund_request.reason or "Refund requested by donor"
+                "note_to_payer": refund_request.reason or "Refund requested by donor",
             }
 
-            headers = {
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json"
-            }
+            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
             response = await self.client.post(
                 f"{self.base_url}/v2/payments/captures/{capture_id}/refund",
                 json=refund_data,
-                headers=headers
+                headers=headers,
             )
             response.raise_for_status()
             refund = response.json()
@@ -277,7 +284,7 @@ class PayPalProvider(PaymentProviderInterface):
                 payment_intent_id=refund_request.payment_intent_id,
                 amount=Decimal(refund["amount"]["value"]),
                 status=refund["status"],
-                created_at=datetime.fromisoformat(refund["create_time"].replace('Z', '+00:00'))
+                created_at=datetime.fromisoformat(refund["create_time"].replace("Z", "+00:00")),
             )
 
         except httpx.HTTPError as e:
@@ -298,14 +305,14 @@ class PayPalProvider(PaymentProviderInterface):
                 "transmission_sig": signature,
                 "transmission_time": "TODO",  # Aus Header
                 "webhook_id": self.webhook_id,
-                "webhook_event": json.loads(payload.decode())
+                "webhook_event": json.loads(payload.decode()),
             }
 
             headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
             response = await self.client.post(
                 f"{self.base_url}/v1/notifications/verify-webhook-signature",
                 json=verification_data,
-                headers=headers
+                headers=headers,
             )
             response.raise_for_status()
             verification = response.json()
@@ -321,8 +328,8 @@ class PayPalProvider(PaymentProviderInterface):
                 event_type=event_data["event_type"],
                 payment_intent_id=event_data.get("resource", {}).get("id"),
                 data=event_data,
-                created_at=datetime.fromisoformat(event_data["create_time"].replace('Z', '+00:00')),
-                is_test=False
+                created_at=datetime.fromisoformat(event_data["create_time"].replace("Z", "+00:00")),
+                is_test=False,
             )
 
         except Exception as e:
@@ -336,8 +343,7 @@ class PayPalProvider(PaymentProviderInterface):
 
             headers = {"Authorization": f"Bearer {token}"}
             response = await self.client.post(
-                f"{self.base_url}/v2/checkout/orders/{payment_intent_id}/void",
-                headers=headers
+                f"{self.base_url}/v2/checkout/orders/{payment_intent_id}/void", headers=headers
             )
             response.raise_for_status()
 

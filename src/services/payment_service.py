@@ -28,6 +28,7 @@ from src.ports.payment_stripe import StripeProvider
 
 logger = logging.getLogger(__name__)
 
+
 class PaymentService:
     """
     Payment Orchestration Service
@@ -50,20 +51,16 @@ class PaymentService:
             PaymentProvider.STRIPE: StripeProvider(
                 api_key="sk_live_xxx",  # Aus Vault laden
                 webhook_secret="whsec_xxx",
-                redis_client=redis_client
+                redis_client=redis_client,
             ),
             PaymentProvider.PAYPAL: PayPalProvider(
                 client_id="xxx",
                 client_secret="xxx",
                 webhook_id="xxx",
                 mode="live",
-                redis_client=redis_client
+                redis_client=redis_client,
             ),
-            PaymentProvider.KLARNA: KlarnaProvider(
-                username="xxx",
-                password="xxx",
-                mode="live"
-            )
+            PaymentProvider.KLARNA: KlarnaProvider(username="xxx", password="xxx", mode="live"),
         }
 
         # Primary und Fallback Provider
@@ -71,10 +68,7 @@ class PaymentService:
         self.fallback_providers = [PaymentProvider.PAYPAL, PaymentProvider.KLARNA]
 
     async def create_donation_with_payment(
-        self,
-        request: CreatePaymentRequest,
-        user_id: UUID,
-        ip_address: str
+        self, request: CreatePaymentRequest, user_id: UUID, ip_address: str
     ) -> dict[str, Any]:
         """
         Erstellt Spende und Payment Intent mit Idempotency
@@ -87,14 +81,11 @@ class PaymentService:
             func=self._create_payment_internal,
             request=request,
             user_id=user_id,
-            ip_address=ip_address
+            ip_address=ip_address,
         )
 
     async def _create_payment_internal(
-        self,
-        request: CreatePaymentRequest,
-        user_id: UUID,
-        ip_address: str
+        self, request: CreatePaymentRequest, user_id: UUID, ip_address: str
     ) -> dict[str, Any]:
         """Interne Payment Creation mit Fallback"""
 
@@ -110,23 +101,25 @@ class PaymentService:
                     request=request,
                     payment_intent=payment_intent,
                     user_id=user_id,
-                    ip_address=ip_address
+                    ip_address=ip_address,
                 )
 
                 # Publish Event
-                await self.event_bus.publish(Event(
-                    aggregate_id=donation.id,
-                    aggregate_type="Donation",
-                    event_type="PaymentIntentCreated",
-                    data={
-                        "payment_intent_id": payment_intent.id,
-                        "provider": provider_type.value,
-                        "amount": str(request.amount),
-                        "project_id": str(request.project_id)
-                    },
-                    user_id=user_id,
-                    metadata={"ip": ip_address}
-                ))
+                await self.event_bus.publish(
+                    Event(
+                        aggregate_id=donation.id,
+                        aggregate_type="Donation",
+                        event_type="PaymentIntentCreated",
+                        data={
+                            "payment_intent_id": payment_intent.id,
+                            "provider": provider_type.value,
+                            "amount": str(request.amount),
+                            "project_id": str(request.project_id),
+                        },
+                        user_id=user_id,
+                        metadata={"ip": ip_address},
+                    )
+                )
 
                 return {
                     "donation_id": str(donation.id),
@@ -134,7 +127,11 @@ class PaymentService:
                     "client_secret": payment_intent.client_secret,
                     "provider": provider_type.value,
                     "status": payment_intent.status,
-                    "redirect_url": payment_intent.metadata.get("redirect_url") if payment_intent.metadata else None
+                    "redirect_url": (
+                        payment_intent.metadata.get("redirect_url")
+                        if payment_intent.metadata
+                        else None
+                    ),
                 }
 
             except Exception as e:
@@ -150,7 +147,7 @@ class PaymentService:
         request: CreatePaymentRequest,
         payment_intent: PaymentIntent,
         user_id: UUID,
-        ip_address: str
+        ip_address: str,
     ) -> Donation:
         """Speichert Spende in Datenbank mit SKR42 Auto-Booking"""
 
@@ -177,7 +174,7 @@ class PaymentService:
                 payment_status=payment_intent.status.value,
                 created_by=user_id,
                 current_hash="",  # Wird später berechnet
-                compliance_status="pending"
+                compliance_status="pending",
             )
 
             # Berechne Merkle Hash
@@ -196,17 +193,19 @@ class PaymentService:
                 new_values={
                     "amount": str(donation.amount),
                     "project_id": str(donation.project_id),
-                    "payment_provider": donation.payment_provider
+                    "payment_provider": donation.payment_provider,
                 },
                 ip_address=ip_address,
-                retention_until=datetime.utcnow().replace(year=datetime.utcnow().year + 10)
+                retention_until=datetime.utcnow().replace(year=datetime.utcnow().year + 10),
             )
             session.add(audit)
             await session.commit()
 
             return donation
 
-    async def handle_webhook(self, provider: PaymentProvider, payload: bytes, signature: str) -> dict[str, Any]:
+    async def handle_webhook(
+        self, provider: PaymentProvider, payload: bytes, signature: str
+    ) -> dict[str, Any]:
         """Verarbeitet eingehende Webhooks von allen Providern"""
 
         provider_handler = self.providers.get(provider)
@@ -217,7 +216,11 @@ class PaymentService:
         webhook_event = await provider_handler.handle_webhook(payload, signature)
 
         # Verarbeite je nach Event Typ
-        if webhook_event.event_type in ["payment_intent.succeeded", "CHECKOUT.ORDER.APPROVED", "AUTHORIZED"]:
+        if webhook_event.event_type in [
+            "payment_intent.succeeded",
+            "CHECKOUT.ORDER.APPROVED",
+            "AUTHORIZED",
+        ]:
             await self._handle_payment_success(webhook_event)
         elif webhook_event.event_type in ["payment_intent.payment_failed", "CHECKOUT.ORDER.VOIDED"]:
             await self._handle_payment_failure(webhook_event)
@@ -231,7 +234,9 @@ class PaymentService:
 
         async with self.session_factory() as session:
             # Update Donation Status
-            stmt = select(Donation).where(Donation.payment_intent_id == webhook_event.payment_intent_id)
+            stmt = select(Donation).where(
+                Donation.payment_intent_id == webhook_event.payment_intent_id
+            )
             result = await session.execute(stmt)
             donation = result.scalar_one()
 
@@ -245,18 +250,20 @@ class PaymentService:
             await session.commit()
 
             # Publish Success Event für weitere Verarbeitung
-            await self.event_bus.publish(Event(
-                aggregate_id=donation.id,
-                aggregate_type="Donation",
-                event_type="DonationSucceeded",
-                data={
-                    "amount": str(donation.amount),
-                    "project_id": str(donation.project_id),
-                    "payment_intent_id": donation.payment_intent_id
-                },
-                user_id=donation.created_by,
-                metadata={"webhook_event": webhook_event.event_type}
-            ))
+            await self.event_bus.publish(
+                Event(
+                    aggregate_id=donation.id,
+                    aggregate_type="Donation",
+                    event_type="DonationSucceeded",
+                    data={
+                        "amount": str(donation.amount),
+                        "project_id": str(donation.project_id),
+                        "payment_intent_id": donation.payment_intent_id,
+                    },
+                    user_id=donation.created_by,
+                    metadata={"webhook_event": webhook_event.event_type},
+                )
+            )
 
             # Audit Log
             audit = AuditLog(
@@ -267,7 +274,7 @@ class PaymentService:
                 old_values={"payment_status": old_status},
                 new_values={"payment_status": PaymentStatus.SUCCEEDED.value},
                 ip_address="webhook",
-                retention_until=datetime.utcnow().replace(year=datetime.utcnow().year + 10)
+                retention_until=datetime.utcnow().replace(year=datetime.utcnow().year + 10),
             )
             session.add(audit)
             await session.commit()
@@ -278,7 +285,9 @@ class PaymentService:
         """Verarbeitet fehlgeschlagene Zahlung"""
 
         async with self.session_factory() as session:
-            stmt = select(Donation).where(Donation.payment_intent_id == webhook_event.payment_intent_id)
+            stmt = select(Donation).where(
+                Donation.payment_intent_id == webhook_event.payment_intent_id
+            )
             result = await session.execute(stmt)
             donation = result.scalar_one()
 
@@ -298,7 +307,7 @@ class PaymentService:
                 new_values={"payment_status": PaymentStatus.FAILED.value},
                 ip_address="webhook",
                 reason=webhook_event.data.get("error_message", "Unknown error"),
-                retention_until=datetime.utcnow().replace(year=datetime.utcnow().year + 10)
+                retention_until=datetime.utcnow().replace(year=datetime.utcnow().year + 10),
             )
             session.add(audit)
             await session.commit()
@@ -309,7 +318,9 @@ class PaymentService:
         """Verarbeitet Rückerstattung"""
 
         async with self.session_factory() as session:
-            stmt = select(Donation).where(Donation.payment_intent_id == webhook_event.payment_intent_id)
+            stmt = select(Donation).where(
+                Donation.payment_intent_id == webhook_event.payment_intent_id
+            )
             result = await session.execute(stmt)
             donation = result.scalar_one()
 
@@ -328,7 +339,7 @@ class PaymentService:
                 old_values={"payment_status": old_status},
                 new_values={"payment_status": PaymentStatus.REFUNDED.value},
                 ip_address="webhook",
-                retention_until=datetime.utcnow().replace(year=datetime.utcnow().year + 10)
+                retention_until=datetime.utcnow().replace(year=datetime.utcnow().year + 10),
             )
             session.add(audit)
             await session.commit()
@@ -340,7 +351,7 @@ class PaymentService:
         donation_id: UUID,
         amount: Decimal | None = None,
         reason: str | None = None,
-        user_id: UUID | None = None
+        user_id: UUID | None = None,
     ) -> RefundResult:
         """Rückerstattung einer Spende"""
 
@@ -351,7 +362,9 @@ class PaymentService:
             donation = result.scalar_one()
 
             if donation.payment_status != PaymentStatus.SUCCEEDED.value:
-                raise HTTPException(status_code=400, detail="Only successful donations can be refunded")
+                raise HTTPException(
+                    status_code=400, detail="Only successful donations can be refunded"
+                )
 
             # Hole Provider
             provider = PaymentProvider(donation.payment_provider)
@@ -359,32 +372,36 @@ class PaymentService:
 
             # Führe Refund durch
             refund_request = RefundRequest(
-                payment_intent_id=donation.payment_intent_id,
-                amount=amount,
-                reason=reason
+                payment_intent_id=donation.payment_intent_id, amount=amount, reason=reason
             )
 
             refund_result = await provider_handler.refund_payment(refund_request)
 
             # Update Donation Status
-            donation.payment_status = PaymentStatus.REFUNDED.value if not amount or amount == donation.amount else PaymentStatus.PARTIALLY_REFUNDED.value
+            donation.payment_status = (
+                PaymentStatus.REFUNDED.value
+                if not amount or amount == donation.amount
+                else PaymentStatus.PARTIALLY_REFUNDED.value
+            )
             donation.updated_at = datetime.utcnow()
             donation.current_hash = donation.compute_hash()
 
             await session.commit()
 
             # Publish Refund Event
-            await self.event_bus.publish(Event(
-                aggregate_id=donation.id,
-                aggregate_type="Donation",
-                event_type="DonationRefunded",
-                data={
-                    "refund_id": refund_result.id,
-                    "amount": str(refund_result.amount),
-                    "reason": reason
-                },
-                user_id=user_id or donation.created_by,
-                metadata={}
-            ))
+            await self.event_bus.publish(
+                Event(
+                    aggregate_id=donation.id,
+                    aggregate_type="Donation",
+                    event_type="DonationRefunded",
+                    data={
+                        "refund_id": refund_result.id,
+                        "amount": str(refund_result.amount),
+                        "reason": reason,
+                    },
+                    user_id=user_id or donation.created_by,
+                    metadata={},
+                )
+            )
 
             return refund_result

@@ -16,29 +16,29 @@ router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
 
 # ==================== Public Endpoints ====================
 
+
 @router.post("/create-donation")
 async def create_donation(
     request: Request,
     payment_request: CreatePaymentRequest,
     payment_service: PaymentService = Depends(get_payment_service),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Erstellt eine neue Spende mit Payment Intent
     Unterstützt Stripe, PayPal, Klarna
     """
     result = await payment_service.create_donation_with_payment(
-        request=payment_request,
-        user_id=current_user.id,
-        ip_address=request.client.host
+        request=payment_request, user_id=current_user.id, ip_address=request.client.host
     )
     return result
+
 
 @router.get("/status/{payment_intent_id}")
 async def get_payment_status(
     payment_intent_id: str,
     provider: PaymentProvider,
-    payment_service: PaymentService = Depends(get_payment_service)
+    payment_service: PaymentService = Depends(get_payment_service),
 ):
     """
     Holt aktuellen Status einer Zahlung
@@ -46,13 +46,15 @@ async def get_payment_status(
     status = await payment_service.get_payment_status(payment_intent_id, provider)
     return status
 
+
 # ==================== Webhook Endpoints (kein Auth) ====================
+
 
 @router.post("/webhook/stripe")
 async def stripe_webhook(
     request: Request,
     background_tasks: BackgroundTasks,
-    payment_service: PaymentService = Depends(get_payment_service)
+    payment_service: PaymentService = Depends(get_payment_service),
 ):
     """
     Stripe Webhook Handler
@@ -63,19 +65,17 @@ async def stripe_webhook(
 
     # Async verarbeiten (nicht blockieren)
     background_tasks.add_task(
-        payment_service.handle_webhook,
-        PaymentProvider.STRIPE,
-        payload,
-        signature
+        payment_service.handle_webhook, PaymentProvider.STRIPE, payload, signature
     )
 
     return {"received": True}
+
 
 @router.post("/webhook/paypal")
 async def paypal_webhook(
     request: Request,
     background_tasks: BackgroundTasks,
-    payment_service: PaymentService = Depends(get_payment_service)
+    payment_service: PaymentService = Depends(get_payment_service),
 ):
     """
     PayPal Webhook Handler
@@ -84,19 +84,17 @@ async def paypal_webhook(
     signature = request.headers.get("paypal-transmission-sig")
 
     background_tasks.add_task(
-        payment_service.handle_webhook,
-        PaymentProvider.PAYPAL,
-        payload,
-        signature
+        payment_service.handle_webhook, PaymentProvider.PAYPAL, payload, signature
     )
 
     return {"received": True}
+
 
 @router.post("/webhook/klarna")
 async def klarna_webhook(
     request: Request,
     background_tasks: BackgroundTasks,
-    payment_service: PaymentService = Depends(get_payment_service)
+    payment_service: PaymentService = Depends(get_payment_service),
 ):
     """
     Klarna Webhook Handler
@@ -105,15 +103,14 @@ async def klarna_webhook(
     signature = request.headers.get("klarna-signature")
 
     background_tasks.add_task(
-        payment_service.handle_webhook,
-        PaymentProvider.KLARNA,
-        payload,
-        signature
+        payment_service.handle_webhook, PaymentProvider.KLARNA, payload, signature
     )
 
     return {"received": True}
 
+
 # ==================== Admin Endpoints ====================
+
 
 @router.post("/refund/{donation_id}")
 async def refund_donation(
@@ -121,24 +118,22 @@ async def refund_donation(
     amount: Decimal | None = None,
     reason: str | None = None,
     payment_service: PaymentService = Depends(get_payment_service),
-    current_user: User = Depends(require_role(UserRole.ADMIN))
+    current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
     """
     Rückerstattung einer Spende (Admin only)
     """
     result = await payment_service.refund_donation(
-        donation_id=donation_id,
-        amount=amount,
-        reason=reason,
-        user_id=current_user.id
+        donation_id=donation_id, amount=amount, reason=reason, user_id=current_user.id
     )
     return result
+
 
 @router.get("/reports/daily")
 async def daily_payment_report(
     date: str,  # YYYY-MM-DD
     payment_service: PaymentService = Depends(get_payment_service),
-    current_user: User = Depends(require_role(UserRole.ACCOUNTANT))
+    current_user: User = Depends(require_role(UserRole.ACCOUNTANT)),
 ):
     """
     Täglicher Zahlungsreport für Buchhaltung
