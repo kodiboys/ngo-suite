@@ -21,8 +21,8 @@ WORKDIR /app
 # Copy dependency files
 COPY pyproject.toml poetry.lock* ./
 
-# Install Poetry 2.2.2
-RUN pip install --no-cache-dir poetry==2.2.2
+# Install Poetry 2.1.2
+RUN pip install --no-cache-dir poetry==2.1.2
 
 # Configure Poetry
 RUN poetry config virtualenvs.create false \
