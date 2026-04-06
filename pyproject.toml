@@ -221,13 +221,3 @@ known_third_party = [
     "boto3", "hvac", "pyotp", "qrcode", "cryptography", "bcrypt",
     "pytest", "hypothesis", "locust"
 ]
-
-[tool.poetry.group.dev.dependencies.black]
-version = "^24.8.0"
-
-[tool.poetry.group.dev.dependencies.ruff]
-version = "^0.6.0"
-
-[tool.poetry.group.dev.dependencies.mypy]
-version = "^1.11.0"
-extras = ["extras"]
