@@ -1,7 +1,7 @@
 # FILE: Dockerfile.api
 # MODULE: Multi-Stage Docker Build für FastAPI Backend
 # Version: 3.0.0 - Optimiert für Produktion mit Slim Image, Security Scanning, Healthchecks
-# Poetry 2.2.2, Python 3.12
+# Poetry 2.1.2, Python 3.12
 
 # ==================== STAGE 1: Builder ====================
 FROM python:3.12-slim as builder
@@ -18,8 +18,8 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry 2.2.2
-RUN pip install --no-cache-dir poetry==2.2.2
+# Install Poetry 2.1.2
+RUN pip install --no-cache-dir poetry==2.1.2
 
 WORKDIR /app
 
