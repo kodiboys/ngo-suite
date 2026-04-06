@@ -3,22 +3,26 @@
 # Enterprise Test Setup mit Fixtures, Mocks, Test-Datenbanken
 
 import asyncio
-import hashlib
-from datetime import datetime
-from decimal import Decimal
-from collections.abc import AsyncGenerator, Generator
-from uuid import uuid4
-
-import fakeredis.aioredis
 import pytest
+from typing import AsyncGenerator, Generator
+from datetime import datetime, timedelta
+from decimal import Decimal
+from uuid import uuid4
+import hashlib
+
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
+import redis.asyncio as redis
+import fakeredis.aioredis
+
 from src.adapters.api import app
+from src.core.entities.base import Base, User, Donation, Project, SKR42Account
+from src.core.entities.inventory import InventoryItem, StockMovement, PackingList
+from src.core.compliance.base import FourEyesApproval, MoneyLaunderingCheck
+from src.core.events.event_store import EventStoreDB
 from src.services.auth import get_password_hash
 
-from src.core.entities.base import Base, Donation, Project, SKR42Account, User
-from src.core.entities.inventory import InventoryItem
 
 # ==================== Test Database ====================
 
@@ -52,8 +56,8 @@ async def test_engine():
 async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     """Create test database session"""
     async_session = async_sessionmaker(
-        test_engine,
-        class_=AsyncSession,
+        test_engine, 
+        class_=AsyncSession, 
         expire_on_commit=False
     )
 
@@ -141,7 +145,7 @@ async def test_project(db_session, test_user) -> Project:
 @pytest.fixture
 async def test_donation(db_session, test_user, test_project) -> Donation:
     """Create test donation"""
-    donor_email_hash = hashlib.sha256(b"donor@example.com").hexdigest()
+    donor_email_hash = hashlib.sha256("donor@example.com".encode()).hexdigest()
 
     donation = Donation(
         donor_email_pseudonym=donor_email_hash,

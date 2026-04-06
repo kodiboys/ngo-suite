@@ -106,7 +106,7 @@ newgrp docker
 #### 2. Repository einrichten
 ```bash
 # Repository klonen
-git clone https://github.com/trueangels/ngo-suite.git
+git clone https://github.com/kodiboys/ngo-suite.git
 cd ngo-suite
 
 # Konfiguration erstellen
@@ -277,7 +277,7 @@ SMTP_HOST=smtp.sendgrid.net
 SMTP_PORT=587
 SMTP_USER=apikey
 SMTP_PASSWORD=SG.xxxxxxxxxxxxx
-SMTP_FROM=noreply@trueangels.de
+SMTP_FROM=noreply@domain.de
 
 # ==================== Monitoring ====================
 GRAFANA_PASSWORD=CHANGE_ME_GRAFANA

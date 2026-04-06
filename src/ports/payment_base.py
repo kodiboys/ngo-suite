@@ -3,14 +3,15 @@
 # Enterprise Payment Integration mit Circuit Breaker, Retry, Idempotency
 
 from abc import ABC, abstractmethod
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, validator
+
 
 # ==================== Enums & Models ====================
 
@@ -56,11 +57,11 @@ class PaymentIntent:
     amount: Decimal                                     # Betrag
     currency: str                                       # Währung (EUR, USD, etc.)
     status: PaymentStatus                               # Aktueller Status
-    client_secret: str | None = None                 # Client Secret (Stripe)
-    payment_method: PaymentMethod | None = None      # Zahlungsmethode
-    donor_email: str | None = None                   # Spender E-Mail
-    donor_name: str | None = None                    # Spender Name
-    project_id: UUID | None = None                   # Projekt-ID
+    client_secret: Optional[str] = None                 # Client Secret (Stripe)
+    payment_method: Optional[PaymentMethod] = None      # Zahlungsmethode
+    donor_email: Optional[str] = None                   # Spender E-Mail
+    donor_name: Optional[str] = None                    # Spender Name
+    project_id: Optional[UUID] = None                   # Projekt-ID
     metadata: dict[str, Any] = field(default_factory=dict)  # Zusätzliche Metadaten
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
@@ -72,8 +73,8 @@ class RefundRequest:
     Einheitliches Refund Model für Rückerstattungen
     """
     payment_intent_id: str                              # Original Payment Intent ID
-    amount: Decimal | None = None                    # None = vollständige Rückerstattung
-    reason: str | None = None                        # Grund für Rückerstattung
+    amount: Optional[Decimal] = None                    # None = vollständige Rückerstattung
+    reason: Optional[str] = None                        # Grund für Rückerstattung
     metadata: dict[str, Any] = field(default_factory=dict)  # Zusätzliche Metadaten
 
 
@@ -98,7 +99,7 @@ class WebhookEvent:
     id: str                                              # Event ID beim Provider
     provider: PaymentProvider                           # Zahlungsanbieter
     event_type: str                                     # Event Typ (z.B. payment_intent.succeeded)
-    payment_intent_id: str | None = None             # Betroffene Payment Intent ID
+    payment_intent_id: Optional[str] = None             # Betroffene Payment Intent ID
     data: dict[str, Any] = field(default_factory=dict)  # Event-Daten
     created_at: datetime = field(default_factory=datetime.utcnow)
     is_test: bool = False                               # Test-Event (Sandbox)
@@ -126,11 +127,11 @@ class CreatePaymentRequest(BaseModel):
         ...,
         description="Zahlungsmethode"
     )
-    success_url: str | None = Field(
+    success_url: Optional[str] = Field(
         None,
         description="URL für erfolgreiche Zahlung (Redirect)"
     )
-    cancel_url: str | None = Field(
+    cancel_url: Optional[str] = Field(
         None,
         description="URL für abgebrochene Zahlung (Redirect)"
     )
@@ -139,7 +140,7 @@ class CreatePaymentRequest(BaseModel):
         regex=r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
         description="E-Mail des Spenders"
     )
-    donor_name: str | None = Field(
+    donor_name: Optional[str] = Field(
         None,
         description="Name des Spenders (optional)"
     )
@@ -154,9 +155,7 @@ class CreatePaymentRequest(BaseModel):
 
     @validator('amount')
     def validate_amount(cls, v: Decimal) -> Decimal:
-        """
-        Validiert den Spendenbetrag
-        """
+        """Validiert den Spendenbetrag"""
         if v < 1:
             raise ValueError('Minimum donation is 1 EUR')
         if v > 100000:
@@ -176,10 +175,10 @@ class PaymentResponse(BaseModel):
     Wird an den Client zurückgegeben
     """
     payment_intent_id: str = Field(..., description="Payment Intent ID")
-    client_secret: str | None = Field(None, description="Client Secret (für Stripe)")
+    client_secret: Optional[str] = Field(None, description="Client Secret (für Stripe)")
     status: PaymentStatus = Field(..., description="Aktueller Status")
     provider: PaymentProvider = Field(..., description="Zahlungsanbieter")
-    redirect_url: str | None = Field(None, description="Redirect URL (für PayPal/Klarna)")
+    redirect_url: Optional[str] = Field(None, description="Redirect URL (für PayPal/Klarna)")
     requires_action: bool = Field(False, description="Benötigt zusätzliche Aktion (z.B. 3D Secure)")
 
     class Config:
@@ -214,7 +213,7 @@ class PaymentProviderInterface(ABC):
     async def confirm_payment(
         self,
         payment_intent_id: str,
-        payment_method_id: str = None
+        payment_method_id: str | None = None
     ) -> PaymentIntent:
         """
         Bestätigt eine Zahlung (z.B. nach 3D Secure)
@@ -374,10 +373,9 @@ class IdempotencyManager:
         if hasattr(result, '__dataclass_fields__'):
             # Dataclass zu Dict konvertieren
             return asdict(result)
-        elif isinstance(result, dict):
+        if isinstance(result, dict):
             return result
-        else:
-            return {"value": result}
+        return {"value": result}
 
     async def invalidate(self, key: str):
         """
@@ -398,7 +396,12 @@ class PaymentProviderError(Exception):
     Base Exception für Payment Provider Fehler
     Wird geworfen, wenn ein Zahlungsanbieter einen Fehler meldet
     """
-    def __init__(self, message: str, provider: PaymentProvider | None = None, original_error: Exception | None = None):
+    def __init__(
+        self,
+        message: str,
+        provider: PaymentProvider | None = None,
+        original_error: Exception | None = None
+    ):
         self.provider = provider
         self.original_error = original_error
         super().__init__(message)

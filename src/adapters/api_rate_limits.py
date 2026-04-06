@@ -2,17 +2,16 @@
 # MODULE: Rate Limiting API Endpoints (Admin)
 # Verwaltung von Rate Limits und Circuit Breaker
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import Optional, Dict, Any
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request
-
+# Korrekte Imports
+from src.services.circuit_breaker_service import CircuitBreakerService
 from src.adapters.auth import require_role
 from src.core.entities.base import UserRole
-from src.middleware.rate_limit_middleware import RateLimitMiddleware
-from src.services.circuit_breaker_service import CircuitBreakerService
 
 router = APIRouter(prefix="/api/v1/rate-limits", tags=["rate_limits"])
-
 
 # ==================== Rate Limit Management ====================
 

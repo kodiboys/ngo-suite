@@ -1,0 +1,619 @@
+/* FILE: wp-plugin/assets/css/transparenz.css */
+/* MODULE: Transparenz Dashboard & Projekt-Cards Styling */
+/* Modern, Responsive, Dark-Mode Ready */
+
+/* ==================== CSS Variables ==================== */
+:root {
+    --trueangels-primary: #2d6a4f;
+    --trueangels-primary-dark: #1b4332;
+    --trueangels-primary-light: #52b788;
+    --trueangels-secondary: #1d3557;
+    --trueangels-success: #51cf66;
+    --trueangels-warning: #ffb703;
+    --trueangels-danger: #e63946;
+    --trueangels-gray-100: #f8f9fa;
+    --trueangels-gray-200: #e9ecef;
+    --trueangels-gray-300: #dee2e6;
+    --trueangels-gray-600: #6c757d;
+    --trueangels-gray-800: #343a40;
+    --trueangels-border-radius: 12px;
+    --trueangels-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --trueangels-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --trueangels-transition: all 0.3s ease;
+}
+
+/* Dark Mode */
+[data-theme="dark"] {
+    --trueangels-gray-100: #1a1a2e;
+    --trueangels-gray-200: #16213e;
+    --trueangels-gray-300: #0f3460;
+    --trueangels-gray-600: #a0a0a0;
+    --trueangels-gray-800: #e8e8e8;
+}
+
+/* ==================== Filter Bar ==================== */
+.trueangels-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: var(--trueangels-gray-100);
+    border-radius: var(--trueangels-border-radius);
+    align-items: flex-end;
+}
+
+.trueangels-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.trueangels-filter-group label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--trueangels-gray-800);
+}
+
+.trueangels-filter-select,
+.trueangels-filter-input {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--trueangels-gray-300);
+    border-radius: 8px;
+    background: white;
+    font-size: 0.875rem;
+    min-width: 150px;
+}
+
+.trueangels-filter-btn {
+    padding: 0.5rem 1.5rem;
+    background: var(--trueangels-primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: var(--trueangels-transition);
+}
+
+.trueangels-filter-btn:hover {
+    background: var(--trueangels-primary-dark);
+    transform: translateY(-2px);
+}
+
+/* ==================== KPI Cards ==================== */
+.trueangels-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.trueangels-kpi-card {
+    background: white;
+    border-radius: var(--trueangels-border-radius);
+    padding: 1.25rem;
+    box-shadow: var(--trueangels-shadow);
+    text-align: center;
+    transition: var(--trueangels-transition);
+}
+
+.trueangels-kpi-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--trueangels-shadow-lg);
+}
+
+.trueangels-kpi-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.trueangels-kpi-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--trueangels-primary);
+}
+
+.trueangels-kpi-label {
+    font-size: 0.875rem;
+    color: var(--trueangels-gray-600);
+    margin-top: 0.25rem;
+}
+
+.trueangels-progress-bar {
+    height: 6px;
+    background: var(--trueangels-gray-200);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 0.75rem;
+}
+
+.trueangels-progress-fill {
+    height: 100%;
+    background: var(--trueangels-primary);
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+/* ==================== Chart Container ==================== */
+.trueangels-chart-container {
+    background: white;
+    border-radius: var(--trueangels-border-radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: var(--trueangels-shadow);
+}
+
+.trueangels-chart-container h3 {
+    margin-bottom: 1rem;
+    color: var(--trueangels-gray-800);
+}
+
+/* ==================== Spendentabelle ==================== */
+.trueangels-table-container {
+    background: white;
+    border-radius: var(--trueangels-border-radius);
+    padding: 1.5rem;
+    box-shadow: var(--trueangels-shadow);
+    overflow-x: auto;
+}
+
+.trueangels-merkle-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    background: var(--trueangels-gray-200);
+    border-radius: 20px;
+    font-size: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.trueangels-tooltip {
+    cursor: help;
+    color: var(--trueangels-gray-600);
+}
+
+.trueangels-transparency-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.trueangels-transparency-table th,
+.trueangels-transparency-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--trueangels-gray-200);
+}
+
+.trueangels-transparency-table th {
+    background: var(--trueangels-gray-100);
+    font-weight: 600;
+    color: var(--trueangels-gray-800);
+}
+
+.trueangels-transparency-table tr:hover {
+    background: var(--trueangels-gray-100);
+}
+
+.trueangels-donor-hash {
+    font-family: monospace;
+    font-size: 0.875rem;
+    letter-spacing: 0.5px;
+}
+
+.trueangels-amount {
+    font-weight: 600;
+    color: var(--trueangels-primary);
+}
+
+.trueangels-update-info {
+    margin-top: 1rem;
+    font-size: 0.75rem;
+    color: var(--trueangels-gray-600);
+    text-align: right;
+}
+
+/* ==================== Projekt-Cards ==================== */
+.trueangels-projects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 1.5rem;
+}
+
+.trueangels-project-card {
+    background: white;
+    border-radius: var(--trueangels-border-radius);
+    overflow: hidden;
+    box-shadow: var(--trueangels-shadow);
+    transition: var(--trueangels-transition);
+}
+
+.trueangels-project-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--trueangels-shadow-lg);
+}
+
+.trueangels-project-image {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+}
+
+.trueangels-project-icon {
+    font-size: 4rem;
+    text-align: center;
+    padding: 2rem;
+    background: var(--trueangels-gray-100);
+}
+
+.trueangels-project-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 1rem 1rem 0.5rem;
+    color: var(--trueangels-gray-800);
+}
+
+.trueangels-project-description {
+    font-size: 0.875rem;
+    color: var(--trueangels-gray-600);
+    margin: 0 1rem 1rem;
+    line-height: 1.5;
+}
+
+.trueangels-project-stats {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 1rem;
+    margin-bottom: 1rem;
+}
+
+.trueangels-stat {
+    text-align: center;
+}
+
+.trueangels-stat-label {
+    font-size: 0.75rem;
+    color: var(--trueangels-gray-600);
+    display: block;
+}
+
+.trueangels-stat-value {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--trueangels-gray-800);
+}
+
+.trueangels-progress-section {
+    padding: 0 1rem;
+    margin-bottom: 1rem;
+}
+
+.trueangels-progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+
+/* ==================== Bedarfe Grid ==================== */
+.trueangels-needs-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0 1rem;
+    margin-bottom: 1rem;
+}
+
+.trueangels-need-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem;
+    background: var(--trueangels-gray-100);
+    border-radius: 8px;
+}
+
+.trueangels-need-icon {
+    font-size: 1.25rem;
+}
+
+.trueangels-need-info {
+    flex: 1;
+}
+
+.trueangels-need-name {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.trueangels-mini-progress {
+    height: 4px;
+    background: var(--trueangels-gray-300);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 4px 0;
+}
+
+.trueangels-mini-fill {
+    height: 100%;
+    background: var(--trueangels-primary);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+.trueangels-need-stats {
+    font-size: 0.7rem;
+    color: var(--trueangels-gray-600);
+}
+
+/* ==================== Detaillierte Bedarfe ==================== */
+.trueangels-needs-dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.trueangels-needs-dashboard h2 {
+    margin-bottom: 1.5rem;
+}
+
+.trueangels-needs-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.trueangels-filter-chip {
+    padding: 0.5rem 1rem;
+    background: var(--trueangels-gray-200);
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: var(--trueangels-transition);
+}
+
+.trueangels-filter-chip:hover,
+.trueangels-filter-chip.active {
+    background: var(--trueangels-primary);
+    color: white;
+}
+
+.trueangels-needs-grid-detailed {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+}
+
+.trueangels-need-card {
+    background: white;
+    border-radius: var(--trueangels-border-radius);
+    padding: 1.25rem;
+    box-shadow: var(--trueangels-shadow);
+    transition: var(--trueangels-transition);
+}
+
+.trueangels-need-card.need-completed {
+    opacity: 0.7;
+    background: var(--trueangels-gray-100);
+}
+
+.trueangels-need-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.trueangels-need-icon {
+    font-size: 2rem;
+}
+
+.trueangels-need-title {
+    flex: 1;
+}
+
+.trueangels-need-title h4 {
+    margin: 0 0 0.25rem;
+    font-size: 1rem;
+}
+
+.trueangels-need-priority {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+}
+
+.priority-critical {
+    background: #e63946;
+    color: white;
+}
+
+.priority-high {
+    background: #ffb703;
+    color: #1a1a1a;
+}
+
+.priority-medium {
+    background: #2d6a4f;
+    color: white;
+}
+
+.priority-low {
+    background: #6c757d;
+    color: white;
+}
+
+.trueangels-need-description {
+    font-size: 0.875rem;
+    color: var(--trueangels-gray-600);
+    margin-bottom: 1rem;
+    line-height: 1.4;
+}
+
+.trueangels-need-stats-detailed {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.trueangels-need-progress-circle {
+    width: 80px;
+    height: 80px;
+}
+
+.trueangels-circular-chart {
+    display: block;
+    margin: 0 auto;
+    width: 100%;
+    height: 100%;
+}
+
+.trueangels-circle-bg {
+    fill: none;
+    stroke: var(--trueangels-gray-200);
+    stroke-width: 3.8;
+}
+
+.trueangels-circle-progress {
+    fill: none;
+    stroke: var(--trueangels-primary);
+    stroke-width: 3.8;
+    stroke-linecap: round;
+    transition: stroke-dasharray 0.5s ease;
+}
+
+.trueangels-progress-text {
+    fill: var(--trueangels-gray-800);
+    font-size: 0.4rem;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    font-weight: bold;
+}
+
+.trueangels-need-quantity {
+    text-align: center;
+}
+
+.trueangels-quantity-current {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--trueangels-primary);
+}
+
+.trueangels-quantity-separator {
+    font-size: 0.875rem;
+    color: var(--trueangels-gray-600);
+}
+
+.trueangels-quantity-target {
+    font-size: 0.875rem;
+    color: var(--trueangels-gray-600);
+}
+
+.trueangels-quantity-unit {
+    font-size: 0.75rem;
+    color: var(--trueangels-gray-600);
+}
+
+.trueangels-need-remaining {
+    font-size: 0.875rem;
+    text-align: center;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    background: var(--trueangels-gray-100);
+    border-radius: 8px;
+}
+
+.trueangels-need-completed-badge {
+    text-align: center;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    background: var(--trueangels-success);
+    color: white;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.trueangels-donate-btn,
+.trueangels-donate-need-btn {
+    width: 100%;
+    padding: 0.75rem;
+    background: var(--trueangels-primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--trueangels-transition);
+    margin-top: 0.5rem;
+}
+
+.trueangels-donate-btn:hover,
+.trueangels-donate-need-btn:hover {
+    background: var(--trueangels-primary-dark);
+    transform: translateY(-2px);
+}
+
+/* ==================== Responsive ==================== */
+@media (max-width: 768px) {
+    .trueangels-kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .trueangels-projects-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .trueangels-needs-grid-detailed {
+        grid-template-columns: 1fr;
+    }
+    
+    .trueangels-filter-bar {
+        flex-direction: column;
+    }
+    
+    .trueangels-filter-select,
+    .trueangels-filter-input {
+        width: 100%;
+    }
+}
+
+/* ==================== Dark Mode Support ==================== */
+@media (prefers-color-scheme: dark) {
+    body.dark-mode .trueangels-kpi-card,
+    body.dark-mode .trueangels-chart-container,
+    body.dark-mode .trueangels-table-container,
+    body.dark-mode .trueangels-project-card,
+    body.dark-mode .trueangels-need-card {
+        background: var(--trueangels-gray-200);
+    }
+}
+
+/* ==================== Loading & Error States ==================== */
+.trueangels-needs-loading,
+.trueangels-no-needs,
+.trueangels-needs-error,
+.trueangels-error,
+.trueangels-info {
+    text-align: center;
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+.trueangels-error {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.trueangels-info {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.trueangels-needs-loading {
+    background: var(--trueangels-gray-100);
+    color: var(--trueangels-gray-600);
+}
