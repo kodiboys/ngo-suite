@@ -443,7 +443,7 @@ class WasabiBackupService:
                     )
                     metadata = json.loads(meta_response["Body"].read().decode("utf-8"))
                     backups.append(metadata)
-                except:
+                except Exception:
                     # Fallback: Nur Basis-Info
                     backups.append(
                         {

@@ -6,17 +6,14 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, validator
 from sqlalchemy import (
-    JSON,
     Boolean,
     CheckConstraint,
     Column,
     DateTime,
-    Float,
     ForeignKey,
     Index,
     Integer,
@@ -212,7 +209,7 @@ class ProjectNeed(Base):
 
         # Verknüpftes Lager-Item aktualisieren (falls vorhanden)
         if self.inventory_item_id:
-            from src.services.inventory_service import update_inventory_for_need
+            pass
 
             # Async call - wird im Service behandelt
 
@@ -344,19 +341,19 @@ class NeedCreate(BaseModel):
 
     project_id: UUID
     name: str = Field(..., min_length=3, max_length=200)
-    description: Optional[str] = None
+    description: str | None = None
     category: NeedCategory = NeedCategory.OTHER
     priority: NeedPriority = NeedPriority.MEDIUM
     quantity_target: int = Field(..., gt=0, le=1000000)
-    unit: Optional[str] = Field("Stück", max_length=20)
-    unit_price_eur: Optional[Decimal] = Field(None, ge=0)
-    inventory_item_id: Optional[UUID] = None
-    valid_from: Optional[datetime] = None
-    valid_until: Optional[datetime] = None
+    unit: str | None = Field("Stück", max_length=20)
+    unit_price_eur: Decimal | None = Field(None, ge=0)
+    inventory_item_id: UUID | None = None
+    valid_from: datetime | None = None
+    valid_until: datetime | None = None
     alert_enabled: bool = True
     alert_threshold_percent: int = Field(20, ge=1, le=100)
-    alert_channels: List[str] = ["email"]
-    tags: List[str] = []
+    alert_channels: list[str] = ["email"]
+    tags: list[str] = []
 
     @validator("valid_until")
     def validate_dates(cls, v, values):
@@ -372,19 +369,19 @@ class NeedCreate(BaseModel):
 class NeedUpdate(BaseModel):
     """API Request für Bedarfs-Update"""
 
-    name: Optional[str] = Field(None, min_length=3, max_length=200)
-    description: Optional[str] = None
-    category: Optional[NeedCategory] = None
-    priority: Optional[NeedPriority] = None
-    quantity_target: Optional[int] = Field(None, gt=0, le=1000000)
-    unit: Optional[str] = Field(None, max_length=20)
-    unit_price_eur: Optional[Decimal] = Field(None, ge=0)
-    status: Optional[NeedStatus] = None
-    valid_from: Optional[datetime] = None
-    valid_until: Optional[datetime] = None
-    alert_enabled: Optional[bool] = None
-    alert_threshold_percent: Optional[int] = Field(None, ge=1, le=100)
-    tags: Optional[List[str]] = None
+    name: str | None = Field(None, min_length=3, max_length=200)
+    description: str | None = None
+    category: NeedCategory | None = None
+    priority: NeedPriority | None = None
+    quantity_target: int | None = Field(None, gt=0, le=1000000)
+    unit: str | None = Field(None, max_length=20)
+    unit_price_eur: Decimal | None = Field(None, ge=0)
+    status: NeedStatus | None = None
+    valid_from: datetime | None = None
+    valid_until: datetime | None = None
+    alert_enabled: bool | None = None
+    alert_threshold_percent: int | None = Field(None, ge=1, le=100)
+    tags: list[str] | None = None
 
 
 class NeedResponse(BaseModel):
@@ -392,27 +389,27 @@ class NeedResponse(BaseModel):
 
     id: UUID
     project_id: UUID
-    project_name: Optional[str] = None
+    project_name: str | None = None
     name: str
-    description: Optional[str]
+    description: str | None
     category: str
     priority: str
     quantity_target: int
     quantity_current: int
     remaining_quantity: int
     fulfillment_percentage: int
-    unit: Optional[str]
-    unit_price_eur: Optional[float]
-    total_value_eur: Optional[float]
+    unit: str | None
+    unit_price_eur: float | None
+    total_value_eur: float | None
     status: str
     is_urgent: bool
-    inventory_item_id: Optional[UUID]
+    inventory_item_id: UUID | None
     alert_enabled: bool
     alert_threshold_percent: int
     created_at: datetime
     updated_at: datetime
-    fulfilled_at: Optional[datetime]
-    tags: List[str]
+    fulfilled_at: datetime | None
+    tags: list[str]
 
     class Config:
         orm_mode = True
@@ -423,8 +420,8 @@ class NeedAlertConfig(BaseModel):
 
     enabled: bool = True
     threshold_percent: int = 20
-    channels: List[AlertChannel] = [AlertChannel.EMAIL]
-    email_recipients: List[str] = []
-    telegram_chat_ids: List[str] = []
-    slack_webhook_url: Optional[str] = None
+    channels: list[AlertChannel] = [AlertChannel.EMAIL]
+    email_recipients: list[str] = []
+    telegram_chat_ids: list[str] = []
+    slack_webhook_url: str | None = None
     cooldown_hours: int = 24

@@ -10,6 +10,7 @@ from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy import select
+from src.ports.payment_base import RefundResult
 
 from src.core.entities.base import AuditLog, Donation, Project, TransactionType
 from src.core.events.event_bus import Event, EventBus

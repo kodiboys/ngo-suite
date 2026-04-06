@@ -142,7 +142,7 @@ class AnalyticsReadModel:
         from datetime import datetime, timedelta
 
         now = datetime.utcnow()
-        start_of_year = datetime(now.year, 1, 1)
+        datetime(now.year, 1, 1)
         start_of_month = datetime(now.year, now.month, 1)
         start_of_week = now - timedelta(days=now.weekday())
 

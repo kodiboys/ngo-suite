@@ -25,6 +25,7 @@ from sqlalchemy import (
     select,
     update,
 )
+from sqlalchemy import UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 

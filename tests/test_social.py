@@ -4,6 +4,8 @@
 
 from unittest.mock import Mock, patch
 from uuid import uuid4
+from hypothesis import given
+from hypothesis import strategies as st
 
 import pytest
 
@@ -135,17 +137,13 @@ async def test_full_social_workflow(db_session, redis_client):
 
 # ==================== Property-Based Tests ====================
 
-from hypothesis import given
-from hypothesis import strategies as st
-
-
 @given(
     text=st.text(min_size=1, max_size=280),
     hashtags=st.lists(st.text(min_size=1, max_size=20), max_size=5),
 )
 def test_tweet_formatting(text, hashtags):
     """Test: Tweet Formatierung mit Hashtags"""
-    post = SocialPost(
+    SocialPost(
         id=uuid4(),
         account_id=uuid4(),
         platform=SocialPlatform.TWITTER,

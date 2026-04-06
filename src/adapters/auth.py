@@ -3,13 +3,10 @@
 # Enterprise Auth mit Vault-Integration, Rate-Limiting, Audit
 # Version: 3.0.0
 
-import hashlib
-import secrets
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID, uuid4
 
-import hvac
 import redis.asyncio as redis
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordBearer
@@ -53,13 +50,13 @@ class TokenPayload(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-    mfa_code: Optional[str] = None
+    mfa_code: str | None = None
 
 
 class LoginResponse(BaseModel):
     access_token: str
     refresh_token: str
-    user: Dict[str, Any]
+    user: dict[str, Any]
 
 
 class MFASetupResponse(BaseModel):
@@ -95,7 +92,7 @@ class JWTHandler:
     def __init__(self, redis_client: redis.Redis):
         self.redis = redis_client
 
-    async def create_tokens(self, user_id: UUID, role: UserRole) -> Dict[str, str]:
+    async def create_tokens(self, user_id: UUID, role: UserRole) -> dict[str, str]:
         """Erstellt Access & Refresh Tokens"""
         # Access Token (kurzlebig)
         access_exp = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -138,7 +135,7 @@ class JWTHandler:
             "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         }
 
-    async def refresh_access_token(self, refresh_token: str) -> Dict[str, str]:
+    async def refresh_access_token(self, refresh_token: str) -> dict[str, str]:
         """Erneuert Access Token mit Refresh Token"""
         try:
             payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -194,7 +191,7 @@ class MFAManager:
 
         self.pyotp = pyotp
 
-    def setup_mfa(self, user_email: str) -> Dict[str, str]:
+    def setup_mfa(self, user_email: str) -> dict[str, str]:
         """Generiert MFA Secret und QR Code"""
         secret = self.pyotp.random_base32()
         totp = self.pyotp.TOTP(secret)
@@ -371,13 +368,13 @@ class AuthService:
     async def _log_audit(
         self,
         session: AsyncSession,
-        user_id: Optional[UUID],
+        user_id: UUID | None,
         action: str,
         entity_type: str,
-        entity_id: Optional[UUID],
+        entity_id: UUID | None,
         ip_address: str,
         reason: str = None,
-        new_values: Dict = None,
+        new_values: dict = None,
         request: Request = None,
     ):
         """Interne Audit-Log Funktion"""

@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
+from hypothesis import given
+from hypothesis import strategies as st
 
 import pytest
 
@@ -165,10 +167,6 @@ async def test_create_packing_list():
 
 
 # ==================== Property-Based Tests ====================
-
-from hypothesis import given
-from hypothesis import strategies as st
-
 
 @given(
     quantity=st.integers(min_value=0, max_value=10000),

@@ -2,27 +2,25 @@
 # MODULE: Donation Read Model für CQRS
 # Denormalisierte Tabelle für schnelle Leseoperationen
 
-from datetime import datetime
-from decimal import Decimal
+# 1. Standard-Library Imports
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
+import logging
+from decimal import Decimal  # WICHTIG: Hier hinzufügen, sonst stürzt der EventHandler ab!
 
+# 2. Third-Party Imports (SQLAlchemy)
 from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    Index,
-    Integer,
-    Numeric,
-    String,
-    func,
-    select,
+    Column, String, DateTime, Numeric, Boolean, Index, Integer, func, select
 )
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
+# 3. Local Application Imports
 from src.core.entities.base import Base
 from src.core.events.event_store import DomainEvent
 
+# 4. Variablen-Zuweisungen (Logger erst JETZT)
+logger = logging.getLogger(__name__)
 
 class DonationReadModel(Base):
     """

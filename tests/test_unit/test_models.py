@@ -39,7 +39,7 @@ class TestDonationModel:
     def test_donation_amount_validation(self, test_user, test_project):
         """Test Betragsvalidierung"""
         with pytest.raises(ValueError):
-            donation = Donation(
+            Donation(
                 donor_email_pseudonym="hash",
                 project_id=test_project.id,
                 skr42_account_id=test_project.skr42_account_id,

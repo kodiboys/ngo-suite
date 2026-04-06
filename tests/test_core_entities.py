@@ -6,7 +6,7 @@ Chaos Engineering Tests
 import hashlib
 from decimal import Decimal
 from uuid import uuid4
-
+from sqlalchemy import select
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st

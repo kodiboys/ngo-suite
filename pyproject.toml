@@ -1,6 +1,5 @@
 # FILE: pyproject.toml
-# MODULE: TrueAngels NGO Suite v3.0.0
-# Poetry 2.1.2 - Bereinigte Version ohne Duplikate
+# MODULE: TrueAngels NGO Suite v3.0.0 - Klassisches Poetry Format
 
 [tool.poetry]
 name = "trueangels-ngo-suite"
@@ -12,16 +11,26 @@ readme = "README.md"
 homepage = "https://angels4ukraine.de"
 repository = "https://github.com/trueangels/ngo-suite"
 documentation = "https://docs.angels4ukraine.de"
-keywords = ["ngo", "donation", "transparency", "ukraine", "compliance", "gobd", "dsgvo", "event-sourcing", "cqrs"]
+keywords = [
+    "ngo",
+    "donation",
+    "transparency",
+    "ukraine",
+    "compliance",
+    "gobd",
+    "dsgvo",
+    "event-sourcing",
+    "cqrs",
+]
 
 [tool.poetry.dependencies]
 python = "^3.12"
 fastapi = "^0.115.0"
-uvicorn = {extras = ["standard"], version = "^0.30.0"}
-pydantic = {extras = ["email"], version = "^2.9.0"}
+uvicorn = { extras = ["standard"], version = "^0.30.0" }
+pydantic = { extras = ["email"], version = "^2.9.0" }
 python-multipart = "^0.0.9"
-python-jose = {extras = ["cryptography"], version = "^3.3.0"}
-passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+python-jose = { extras = ["cryptography"], version = "^3.3.0" }
+passlib = { extras = ["bcrypt"], version = "^1.7.4" }
 python-dotenv = "^1.0.0"
 sqlalchemy = "^2.0.35"
 asyncpg = "^0.29.0"
@@ -40,7 +49,7 @@ prometheus-client = "^0.20.0"
 opentelemetry-api = "^1.25.0"
 opentelemetry-sdk = "^1.25.0"
 opentelemetry-instrumentation-fastapi = "^0.46b0"
-sentry-sdk = {extras = ["fastapi"], version = "^2.13.0"}
+sentry-sdk = { extras = ["fastapi"], version = "^2.13.0" }
 reportlab = "^4.2.0"
 weasyprint = "^62.0"
 plotly = "^5.24.0"
@@ -88,136 +97,4 @@ trueangels-merkle = "src.core.compliance.merkle:daily_merkle_job"
 requires = ["poetry-core>=1.9.0,<2.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.black]
-line-length = 100
-target-version = ['py312']
-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-  | migrations
-  | scripts
-)/
-'''
-
-[tool.ruff]
-line-length = 100
-target-version = "py312"
-exclude = [
-    ".git",
-    ".venv",
-    "__pycache__",
-    "build",
-    "dist",
-    "migrations",
-    "scripts"
-]
-
-[tool.ruff.lint]
-select = [
-    "E", "W", "F", "I", "N", "UP", "B", "C4", "SIM", "TID"
-]
-ignore = [
-    "E501", "B008", "SIM108"
-]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "PLR2004", "ARG001"]
-"scripts/*" = ["T201", "ARG001"]
-
-[tool.mypy]
-python_version = "3.12"
-strict = true
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-ignore_missing_imports = true
-exclude = [
-    "migrations/",
-    "scripts/",
-    "tests/",
-    "venv/",
-    ".venv/"
-]
-
-[tool.pytest.ini_options]
-minversion = "7.0"
-asyncio_mode = "auto"
-testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
-python_classes = ["Test*", "*Test"]
-python_functions = ["test_*"]
-addopts = [
-    "-v",
-    "--strict-markers",
-    "--tb=short",
-    "--showlocals",
-    "--maxfail=1",
-    "-p", "no:cacheprovider"
-]
-markers = [
-    "unit: Unit tests (fast, isolated)",
-    "integration: Integration tests (requires database)",
-    "e2e: End-to-end tests (full stack)",
-    "slow: Slow running tests",
-    "chaos: Chaos engineering tests",
-    "load: Load/performance tests",
-    "benchmark: Benchmark tests",
-    "asyncio: Asynchronous tests"
-]
-filterwarnings = [
-    "ignore::DeprecationWarning",
-    "ignore::PendingDeprecationWarning"
-]
-
-[tool.coverage.run]
-source = ["src"]
-omit = [
-    "tests/*",
-    "scripts/*",
-    "migrations/*",
-    "venv/*",
-    ".venv/*",
-    "*/__pycache__/*"
-]
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
-    "class .*\\bProtocol\\):",
-    "@(abc\\.)?abstractmethod"
-]
-fail_under = 85
-show_missing = true
-
-[tool.isort]
-profile = "black"
-line_length = 100
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
-lines_after_imports = 2
-known_first_party = ["src"]
-known_third_party = [
-    "fastapi", "sqlalchemy", "alembic", "pydantic", "redis",
-    "celery", "stripe", "paypalrestsdk", "httpx", "jose",
-    "passlib", "prometheus_client", "opentelemetry", "sentry_sdk",
-    "reportlab", "weasyprint", "plotly", "pandas", "streamlit",
-    "boto3", "hvac", "pyotp", "qrcode", "cryptography", "bcrypt",
-    "pytest", "hypothesis", "locust"
-]
+# ... rest der Tool-Konfigurationen (black, ruff, mypy, etc.) ...

@@ -4,15 +4,13 @@
 
 import logging
 from datetime import datetime
-from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import and_, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-from src.core.entities.base import AuditLog, Donation
+from src.core.entities.base import AuditLog
 from src.core.entities.inventory import (
     InventoryItem,
     PackingList,
@@ -22,7 +20,6 @@ from src.core.entities.inventory import (
 )
 from src.core.entities.needs import NeedHistory, NeedStatus, ProjectNeed
 from src.core.events.event_bus import Event, EventBus
-from src.services.audit import audit_log
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +43,7 @@ class NeedFulfillmentService:
 
     async def reserve_inventory_for_need(
         self, need_id: UUID, quantity: int, user_id: UUID, ip_address: str = "system"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Reserviert Lagerbestand für einen Bedarf
 
@@ -73,7 +70,7 @@ class NeedFulfillmentService:
 
             # 2. Finde passendes Inventory Item
             stmt = select(InventoryItem).where(
-                InventoryItem.need_id == need_id, InventoryItem.is_active == True
+                InventoryItem.need_id == need_id, InventoryItem.is_active is True
             )
             result = await session.execute(stmt)
             item = result.scalar_one_or_none()
@@ -83,7 +80,7 @@ class NeedFulfillmentService:
                 stmt = select(InventoryItem).where(
                     InventoryItem.project_id == need.project_id,
                     InventoryItem.category == need.category,
-                    InventoryItem.is_active == True,
+                    InventoryItem.is_active is True,
                     InventoryItem.available_quantity >= quantity,
                 )
                 result = await session.execute(stmt)
@@ -179,10 +176,10 @@ class NeedFulfillmentService:
         user_id: UUID,
         recipient_name: str,
         recipient_address: str,
-        recipient_email: Optional[str] = None,
-        shipping_method: Optional[str] = None,
+        recipient_email: str | None = None,
+        shipping_method: str | None = None,
         ip_address: str = "system",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Erfüllt einen Bedarf aus dem Lagerbestand
 
@@ -375,7 +372,7 @@ class NeedFulfillmentService:
         # Implementierung für Email/Telegram/Slack
         pass
 
-    async def get_need_fulfillment_status(self, need_id: UUID) -> Dict[str, Any]:
+    async def get_need_fulfillment_status(self, need_id: UUID) -> dict[str, Any]:
         """Holt detaillierten Status der Bedarfserfüllung"""
         async with self.session_factory() as session:
             stmt = select(ProjectNeed).where(ProjectNeed.id == need_id)
@@ -436,7 +433,7 @@ class NeedFulfillmentService:
                 ],
             }
 
-    async def get_project_fulfillment_summary(self, project_id: UUID) -> Dict[str, Any]:
+    async def get_project_fulfillment_summary(self, project_id: UUID) -> dict[str, Any]:
         """Holt Übersicht über alle Bedarfserfüllungen eines Projekts"""
         async with self.session_factory() as session:
             stmt = select(ProjectNeed).where(ProjectNeed.project_id == project_id)

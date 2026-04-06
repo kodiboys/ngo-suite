@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any
 from uuid import UUID
+from typing import Dict
 
 from fastapi import HTTPException, Request
 from sqlalchemy import select

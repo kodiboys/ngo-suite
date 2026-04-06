@@ -6,15 +6,13 @@
 
 import hashlib
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, validator
 from sqlalchemy import (
-    JSON,
     BigInteger,
     Boolean,
     CheckConstraint,
@@ -30,7 +28,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.event import listens_for
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, validates
 
@@ -580,11 +577,11 @@ class DonationCreate(BaseModel):
     project_id: UUID
     amount: Decimal = Field(..., gt=0, le=100000)
     donor_email: str = Field(..., regex=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
-    donor_name: Optional[str] = None
+    donor_name: str | None = None
     payment_provider: str = Field(..., regex="^(stripe|paypal|klarna)$")
     payment_intent_id: str
-    tax_id: Optional[str] = None
-    need_id: Optional[UUID] = None  # v3.0: Spezifischer Bedarf
+    tax_id: str | None = None
+    need_id: UUID | None = None  # v3.0: Spezifischer Bedarf
     consent_transparenz: bool = Field(False, description="Opt-in für Transparenzseite")  # v3.0
 
     @validator("donor_email")
@@ -608,7 +605,7 @@ class DonationResponse(BaseModel):
     created_at: datetime
     donation_receipt_generated: bool
     consent_transparenz: bool  # v3.0
-    transparency_hash: Optional[str] = None  # v3.0: SPENDER-A1B2C3
+    transparency_hash: str | None = None  # v3.0: SPENDER-A1B2C3
 
     class Config:
         orm_mode = True
@@ -619,7 +616,7 @@ class UserCreate(BaseModel):
 
     email: str
     password: str
-    name: Optional[str] = None
+    name: str | None = None
     role: UserRole = UserRole.DONOR
 
 
@@ -631,7 +628,7 @@ class UserResponse(BaseModel):
     role: UserRole
     email_verified: bool
     created_at: datetime
-    telegram_chat_id: Optional[str] = None  # v3.0
+    telegram_chat_id: str | None = None  # v3.0
 
     class Config:
         orm_mode = True
@@ -647,7 +644,7 @@ class RowLevelSecurity:
     """
 
     @staticmethod
-    def get_policies() -> List[str]:
+    def get_policies() -> list[str]:
         return [
             """
             -- Donors sehen nur ihre eigenen Spenden (pseudonymisiert)
@@ -676,7 +673,7 @@ class RowLevelSecurity:
             -- 4-Augen-Prinzip für Buchungen >5000€
             CREATE POLICY four_eyes_policy ON donations
                 FOR UPDATE USING (
-                    amount > 5000 
+                    amount > 5000
                     AND current_setting('app.four_eyes_approved') = 'true'
                 );
             """,

@@ -6,20 +6,17 @@
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
-from uuid import UUID, uuid4
+from typing import Any
+from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from src.core.entities.base import AuditLog, Donation, Project, User
+from src.core.entities.base import AuditLog, Project
 from src.core.entities.inventory import (
     InventoryItem,
     InventoryItemCreate,
-    ItemCategory,
-    ItemCondition,
     PackingList,
     PackingListCreate,
     PackingListItem,
@@ -260,12 +257,12 @@ class InventoryService:
 
             return stock_movement
 
-    async def get_low_stock_items(self, project_id: Optional[UUID] = None) -> List[InventoryItem]:
+    async def get_low_stock_items(self, project_id: UUID | None = None) -> list[InventoryItem]:
         """Listet Artikel mit niedrigem Bestand auf"""
         async with self.session_factory() as session:
             stmt = select(InventoryItem).where(
                 InventoryItem.quantity <= InventoryItem.reorder_point,
-                InventoryItem.is_active == True,
+                InventoryItem.is_active is True,
             )
             if project_id:
                 stmt = stmt.where(InventoryItem.project_id == project_id)
@@ -273,7 +270,7 @@ class InventoryService:
             result = await session.execute(stmt)
             return result.scalars().all()
 
-    async def get_expiring_items(self, days_threshold: int = 30) -> List[InventoryItem]:
+    async def get_expiring_items(self, days_threshold: int = 30) -> list[InventoryItem]:
         """Listet Artikel mit ablaufendem Verfallsdatum"""
         async with self.session_factory() as session:
             expiry_date = datetime.utcnow() + timedelta(days=days_threshold)
@@ -282,7 +279,7 @@ class InventoryService:
                 .where(
                     InventoryItem.expiration_date <= expiry_date,
                     InventoryItem.expiration_date > datetime.utcnow(),
-                    InventoryItem.is_active == True,
+                    InventoryItem.is_active is True,
                 )
                 .order_by(InventoryItem.expiration_date)
             )
@@ -292,11 +289,11 @@ class InventoryService:
 
     # ==================== Need-Fulfillment Methods (v3.0) ====================
 
-    async def get_items_for_need(self, need_id: UUID) -> List[InventoryItem]:
+    async def get_items_for_need(self, need_id: UUID) -> list[InventoryItem]:
         """Holt alle Lagerartikel für einen Bedarf"""
         async with self.session_factory() as session:
             stmt = select(InventoryItem).where(
-                InventoryItem.need_id == need_id, InventoryItem.is_active == True
+                InventoryItem.need_id == need_id, InventoryItem.is_active is True
             )
             result = await session.execute(stmt)
             return result.scalars().all()
@@ -357,14 +354,14 @@ class InventoryService:
             return item
 
     async def get_low_stock_for_needs(
-        self, project_id: Optional[UUID] = None
-    ) -> List[Dict[str, Any]]:
+        self, project_id: UUID | None = None
+    ) -> list[dict[str, Any]]:
         """Listet Artikel mit niedrigem Bestand, die für Bedarfe relevant sind"""
         async with self.session_factory() as session:
             stmt = select(InventoryItem).where(
                 InventoryItem.need_id.isnot(None),
                 InventoryItem.available_quantity <= InventoryItem.reorder_point,
-                InventoryItem.is_active == True,
+                InventoryItem.is_active is True,
             )
 
             if project_id:
@@ -406,12 +403,12 @@ class InventoryService:
             return result_list
 
     async def get_transparency_inventory(
-        self, project_id: Optional[UUID] = None
-    ) -> List[Dict[str, Any]]:
+        self, project_id: UUID | None = None
+    ) -> list[dict[str, Any]]:
         """Holt Lagerbestände für Transparenzseite (öffentlich)"""
         async with self.session_factory() as session:
             stmt = select(InventoryItem).where(
-                InventoryItem.show_on_transparency == True, InventoryItem.is_active == True
+                InventoryItem.show_on_transparency is True, InventoryItem.is_active is True
             )
 
             if project_id:
@@ -657,7 +654,7 @@ class InventoryService:
 
     @audit_log(action="DELIVER_PACKINGLIST", entity_type="packing_list")
     async def mark_as_delivered(
-        self, packing_list_id: UUID, signature_data: Optional[str] = None
+        self, packing_list_id: UUID, signature_data: str | None = None
     ) -> PackingList:
         """
         Markiert Packliste als zugestellt (mit Unterschrift)
@@ -760,14 +757,14 @@ class InventoryService:
 
     # ==================== Reports ====================
 
-    async def get_inventory_value_report(self, project_id: Optional[UUID] = None) -> Dict[str, Any]:
+    async def get_inventory_value_report(self, project_id: UUID | None = None) -> dict[str, Any]:
         """Bericht: Gesamtwert des Lagers nach Kategorie"""
         async with self.session_factory() as session:
             stmt = select(
                 InventoryItem.category,
                 func.sum(InventoryItem.total_value).label("total_value"),
                 func.sum(InventoryItem.quantity).label("total_quantity"),
-            ).where(InventoryItem.is_active == True)
+            ).where(InventoryItem.is_active is True)
 
             if project_id:
                 stmt = stmt.where(InventoryItem.project_id == project_id)
@@ -792,7 +789,7 @@ class InventoryService:
 
             return report
 
-    async def get_movement_history(self, item_id: UUID, limit: int = 100) -> List[StockMovement]:
+    async def get_movement_history(self, item_id: UUID, limit: int = 100) -> list[StockMovement]:
         """Zeigt Bewegungs-History für ein Item"""
         async with self.session_factory() as session:
             stmt = (
@@ -807,7 +804,7 @@ class InventoryService:
 
     async def get_need_fulfillment_history(
         self, need_id: UUID, limit: int = 50
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Zeigt History der Bedarfserfüllungen (v3.0)"""
         async with self.session_factory() as session:
             stmt = (

@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, validator
@@ -61,11 +61,11 @@ class PaymentIntent:
     amount: Decimal  # Betrag
     currency: str  # Währung (EUR, USD, etc.)
     status: PaymentStatus  # Aktueller Status
-    client_secret: Optional[str] = None  # Client Secret (Stripe)
-    payment_method: Optional[PaymentMethod] = None  # Zahlungsmethode
-    donor_email: Optional[str] = None  # Spender E-Mail
-    donor_name: Optional[str] = None  # Spender Name
-    project_id: Optional[UUID] = None  # Projekt-ID
+    client_secret: str | None = None  # Client Secret (Stripe)
+    payment_method: PaymentMethod | None = None  # Zahlungsmethode
+    donor_email: str | None = None  # Spender E-Mail
+    donor_name: str | None = None  # Spender Name
+    project_id: UUID | None = None  # Projekt-ID
     metadata: dict[str, Any] = field(default_factory=dict)  # Zusätzliche Metadaten
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
@@ -78,8 +78,8 @@ class RefundRequest:
     """
 
     payment_intent_id: str  # Original Payment Intent ID
-    amount: Optional[Decimal] = None  # None = vollständige Rückerstattung
-    reason: Optional[str] = None  # Grund für Rückerstattung
+    amount: Decimal | None = None  # None = vollständige Rückerstattung
+    reason: str | None = None  # Grund für Rückerstattung
     metadata: dict[str, Any] = field(default_factory=dict)  # Zusätzliche Metadaten
 
 
@@ -106,7 +106,7 @@ class WebhookEvent:
     id: str  # Event ID beim Provider
     provider: PaymentProvider  # Zahlungsanbieter
     event_type: str  # Event Typ (z.B. payment_intent.succeeded)
-    payment_intent_id: Optional[str] = None  # Betroffene Payment Intent ID
+    payment_intent_id: str | None = None  # Betroffene Payment Intent ID
     data: dict[str, Any] = field(default_factory=dict)  # Event-Daten
     created_at: datetime = field(default_factory=datetime.utcnow)
     is_test: bool = False  # Test-Event (Sandbox)
@@ -126,14 +126,14 @@ class CreatePaymentRequest(BaseModel):
     )
     currency: str = Field("EUR", regex="^(EUR|USD|GBP)$", description="Währung (EUR, USD, GBP)")
     payment_method: PaymentMethod = Field(..., description="Zahlungsmethode")
-    success_url: Optional[str] = Field(None, description="URL für erfolgreiche Zahlung (Redirect)")
-    cancel_url: Optional[str] = Field(None, description="URL für abgebrochene Zahlung (Redirect)")
+    success_url: str | None = Field(None, description="URL für erfolgreiche Zahlung (Redirect)")
+    cancel_url: str | None = Field(None, description="URL für abgebrochene Zahlung (Redirect)")
     donor_email: str = Field(
         ...,
         regex=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
         description="E-Mail des Spenders",
     )
-    donor_name: Optional[str] = Field(None, description="Name des Spenders (optional)")
+    donor_name: str | None = Field(None, description="Name des Spenders (optional)")
     project_id: UUID = Field(..., description="Projekt-ID für die Spende")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Zusätzliche Metadaten")
 
@@ -157,10 +157,10 @@ class PaymentResponse(BaseModel):
     """
 
     payment_intent_id: str = Field(..., description="Payment Intent ID")
-    client_secret: Optional[str] = Field(None, description="Client Secret (für Stripe)")
+    client_secret: str | None = Field(None, description="Client Secret (für Stripe)")
     status: PaymentStatus = Field(..., description="Aktueller Status")
     provider: PaymentProvider = Field(..., description="Zahlungsanbieter")
-    redirect_url: Optional[str] = Field(None, description="Redirect URL (für PayPal/Klarna)")
+    redirect_url: str | None = Field(None, description="Redirect URL (für PayPal/Klarna)")
     requires_action: bool = Field(False, description="Benötigt zusätzliche Aktion (z.B. 3D Secure)")
 
     class Config:

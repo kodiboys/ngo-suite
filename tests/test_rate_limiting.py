@@ -4,6 +4,8 @@
 
 import asyncio
 from unittest.mock import patch
+from hypothesis import given
+from hypothesis import strategies as st
 
 import pytest
 
@@ -218,10 +220,6 @@ async def test_concurrent_rate_limiting(redis_client):
 
 
 # ==================== Property-Based Tests ====================
-
-from hypothesis import given
-from hypothesis import strategies as st
-
 
 @given(
     limit=st.integers(min_value=1, max_value=100),

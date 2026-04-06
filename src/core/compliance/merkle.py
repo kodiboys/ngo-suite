@@ -5,14 +5,12 @@
 import hashlib
 import json
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional
-from uuid import UUID
+from typing import Any
 
-from sqlalchemy import and_, extract, func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.entities.base import Donation
-from src.core.entities.needs import ProjectNeed
 from src.core.entities.transparency import TransparencyHash
 
 
@@ -38,7 +36,7 @@ class MerkleTreeService:
             select(Donation)
             .where(
                 Donation.created_at.between(start, end),
-                Donation.consent_transparenz == True,
+                Donation.consent_transparenz is True,
                 Donation.payment_status == "succeeded",
             )
             .order_by(Donation.created_at)
@@ -83,7 +81,7 @@ class MerkleTreeService:
         json_str = json.dumps(data, sort_keys=True)
         return hashlib.sha256(json_str.encode()).hexdigest()
 
-    def _build_merkle_tree(self, leaf_hashes: List[str]) -> str:
+    def _build_merkle_tree(self, leaf_hashes: list[str]) -> str:
         """Baut Merkle-Tree aus Leaf-Hashes"""
         if not leaf_hashes:
             return hashlib.sha256(b"empty").hexdigest()
@@ -103,7 +101,7 @@ class MerkleTreeService:
 
         return self._build_merkle_tree(next_level)
 
-    async def _get_previous_day_hash(self, target_date: date) -> Optional[str]:
+    async def _get_previous_day_hash(self, target_date: date) -> str | None:
         """Holt Hash des vorherigen Tages"""
         prev_date = target_date - timedelta(days=1)
 
@@ -159,7 +157,7 @@ class MerkleTreeService:
 
         return hash_record.merkle_root if hash_record else "not_generated_yet"
 
-    async def verify_integrity(self, target_date: date) -> Dict[str, Any]:
+    async def verify_integrity(self, target_date: date) -> dict[str, Any]:
         """
         Verifiziert die Integrität der Transparenz-Daten
         Prüft ob gespeicherter Hash mit neu berechnetem übereinstimmt

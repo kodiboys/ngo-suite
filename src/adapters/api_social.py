@@ -2,11 +2,9 @@
 # MODULE: Social Media API Endpoints (FastAPI)
 # REST Endpoints für Posts, Analytics, Account Management
 
-from datetime import datetime
-from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 
 from src.adapters.auth import get_current_active_user, require_role
 from src.core.entities.base import User, UserRole
@@ -101,7 +99,7 @@ async def get_campaign_report(
 async def connect_social_account(
     platform: SocialPlatform,
     access_token: str,
-    refresh_token: Optional[str] = None,
+    refresh_token: str | None = None,
     social_service: SocialMediaService = Depends(get_social_service),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -153,7 +151,7 @@ async def post_donation_thank_you(
     """
     Automatischer Dankes-Post für Spende
     """
-    text = f"🎉 Vielen Dank für Ihre großzügige Spende! Mit Ihrer Unterstützung können wir weiterhin helfen. #Danke #TrueAngels"
+    text = "🎉 Vielen Dank für Ihre großzügige Spende! Mit Ihrer Unterstützung können wir weiterhin helfen. #Danke #TrueAngels"
 
     post_request = CreatePostRequest(
         text=text, platform=SocialPlatform.TWITTER, hashtags=["Danke", "TrueAngels", "Spende"]
@@ -173,7 +171,7 @@ async def post_project_update(
     """
     Automatisches Projekt-Update
     """
-    text = f"📊 Fortschrittsupdate unseres Projekts! Wir arbeiten weiter mit voller Kraft. #ProjektUpdate #TrueAngels"
+    text = "📊 Fortschrittsupdate unseres Projekts! Wir arbeiten weiter mit voller Kraft. #ProjektUpdate #TrueAngels"
 
     post_request = CreatePostRequest(
         text=text,

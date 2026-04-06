@@ -5,6 +5,9 @@
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
+from hypothesis import given
+from hypothesis import strategies as st
+
 
 import pytest
 
@@ -160,10 +163,6 @@ async def test_full_payment_flow(db_session, redis_client):
 
 
 # ==================== Property-Based Tests ====================
-
-from hypothesis import given
-from hypothesis import strategies as st
-
 
 @given(amount=st.decimals(min_value=0.01, max_value=100000, places=2), email=st.emails())
 def test_payment_amount_validation(amount, email):

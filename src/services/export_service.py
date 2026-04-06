@@ -5,16 +5,18 @@
 import csv
 import io
 import json
+import logging
 import zipfile
 from datetime import datetime, timedelta
 from uuid import UUID
 
 import pandas as pd
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import select, func
 
-from src.core.entities.base import AuditLog, Donation, Project, User
+from src.core.entities.base import Donation, Project, User, AuditLog
 
+# Logger konfigurieren
 logger = logging.getLogger(__name__)
 
 
@@ -246,8 +248,8 @@ class ExportService:
     async def export_financial_report(self, year: int, format: str = "excel") -> bytes:
         """Exportiert finanziellen Jahresbericht"""
         async with self.session_factory() as session:
-            start_date = datetime(year, 1, 1)
-            end_date = datetime(year, 12, 31, 23, 59, 59)
+            datetime(year, 1, 1)
+            datetime(year, 12, 31, 23, 59, 59)
 
             # Monatliche Spenden
             monthly_donations = []
@@ -331,7 +333,7 @@ class ExportService:
                             try:
                                 if len(str(cell.value)) > max_length:
                                     max_length = len(str(cell.value))
-                            except:
+                            except Exception:
                                 pass
                         adjusted_width = min(max_length + 2, 50)
                         sheet.column_dimensions[column_letter].width = adjusted_width
@@ -358,7 +360,7 @@ class ExportService:
                     try:
                         if len(str(cell.value)) > max_length:
                             max_length = len(str(cell.value))
-                    except:
+                    except Exception:
                         pass
                 adjusted_width = min(max_length + 2, 50)
                 worksheet.column_dimensions[column_letter].width = adjusted_width
@@ -387,7 +389,7 @@ class ExportService:
         output = io.BytesIO()
 
         with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as zipf:
-            for content, filename in zip(exports, filenames):
+            for content, filename in zip(exports, filenames, strict=False):
                 zipf.writestr(filename, content)
 
         output.seek(0)

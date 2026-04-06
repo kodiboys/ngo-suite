@@ -1,200 +1,212 @@
-# FILE: src/adapters/api_rate_limits.py
-# MODULE: Rate Limiting API Endpoints (Admin)
-# Verwaltung von Rate Limits und Circuit Breaker
+# FILE: src/adapters/api_reports.py
+# MODULE: Report API Endpoints (FastAPI)
+# REST Endpoints für PDF-Generierung, Exporte, Dashboards
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Optional
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Response
 
-from src.adapters.auth import require_role
-from src.core.entities.base import UserRole
+from src.adapters.auth import get_current_active_user, require_role
+from src.adapters.dependencies import (
+    get_receipt_generator,
+    get_balance_generator,
+    get_project_report_generator,
+    get_accounting_service,
+    get_export_service,
+)
+from src.core.entities.base import User, UserRole
 
-# Korrekte Imports
-from src.services.circuit_breaker_service import CircuitBreakerService
-
-router = APIRouter(prefix="/api/v1/rate-limits", tags=["rate_limits"])
-
-# ==================== Rate Limit Management ====================
+router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 
 
-@router.get("/status/{key}")
-async def get_rate_limit_status(
-    key: str,
-    request: Request,  # ✅ Request zuerst
-    scope: str = "ip",  # ✅ Default danach
-    current_user=Depends(require_role(UserRole.ADMIN)),  # ✅ Depends am Ende
+# ==================== Zuwendungsbescheinigungen ====================
+
+@router.get("/donation-receipt/{donation_id}")
+async def get_donation_receipt(
+    donation_id: UUID,
+    include_personal_data: bool = True,
+    receipt_generator=Depends(get_receipt_generator),
+    current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Holt aktuellen Rate Limit Status für einen Key
-    """
-    from src.core.rate_limiting.base import RateLimitConfig, RateLimitScope
-    from src.core.rate_limiting.redis_limiter import SlidingWindowRateLimiter
-
-    redis_client = request.app.state.redis
-    limiter = SlidingWindowRateLimiter(redis_client)
-
-    config = RateLimitConfig(
-        scope=RateLimitScope(scope), strategy="sliding_window", limit=100, window_seconds=60
+    """Generiert Zuwendungsbescheinigung als PDF (Spender oder Admin)"""
+    pdf_bytes = await receipt_generator.generate_donation_receipt(
+        donation_id, 
+        include_personal_data
     )
-
-    current_count = await limiter.get_current_count(key, config)
-
-    return {
-        "key": key,
-        "scope": scope,
-        "current_count": current_count,
-        "checked_at": datetime.utcnow().isoformat(),
-    }
-
-
-@router.get("/circuit-breakers")
-async def get_circuit_breakers_status(
-    request: Request,  # ✅ Request zuerst
-    circuit_breaker_service: CircuitBreakerService = Depends(
-        get_circuit_breaker_service
-    ),  # ✅ Depends
-    current_user=Depends(require_role(UserRole.ADMIN)),
-):
-    """
-    Resetet Rate Limit für einen Key
-    """
-    from src.core.rate_limiting.base import RateLimitConfig, RateLimitScope
-    from src.core.rate_limiting.redis_limiter import SlidingWindowRateLimiter
-
-    redis_client = request.app.state.redis
-    limiter = SlidingWindowRateLimiter(redis_client)
-
-    config = RateLimitConfig(
-        scope=RateLimitScope(scope), strategy="sliding_window", limit=100, window_seconds=60
-    )
-
-    await limiter.reset(key, config)
-
-    return {"key": key, "scope": scope, "reset": True, "reset_at": datetime.utcnow().isoformat()}
-
-
-@router.get("/rules")
-async def list_rate_limit_rules(
-    request: Request, current_user=Depends(require_role(UserRole.ADMIN))
-):
-    """
-    Listet alle aktiven Rate Limit Regeln
-    """
-    middleware = None
-    for m in request.app.user_middleware:
-        if m.cls == RateLimitMiddleware:
-            middleware = m
-            break
-
-    if middleware and hasattr(middleware, "rules"):
-        rules = middleware.rules
-        return {
-            "rules": [
-                {
-                    "name": name,
-                    "path_pattern": rule.path_pattern,
-                    "method": rule.method,
-                    "scope": rule.scope.value,
-                    "strategy": rule.strategy.value,
-                    "limit": rule.limit,
-                    "window_seconds": rule.window_seconds,
-                    "burst_limit": rule.burst_limit,
-                }
-                for name, rule in rules.items()
-            ]
+    
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=zuwendungsbescheinigung_{donation_id}.pdf"
         }
-
-    return {"rules": []}
-
-
-# ==================== Circuit Breaker Management ====================
+    )
 
 
-@router.get("/circuit-breakers")
-async def get_circuit_breakers_status(
-    circuit_breaker_service: CircuitBreakerService = Depends(get_circuit_breaker_service),
-    current_user=Depends(require_role(UserRole.ADMIN)),
+# ==================== SKR42 Bilanzen ====================
+
+@router.get("/balance-sheet")
+async def get_balance_sheet(
+    project_id: Optional[UUID] = None,
+    year: Optional[int] = None,
+    include_comparison: bool = True,
+    balance_generator=Depends(get_balance_generator),
+    current_user: User = Depends(require_role(UserRole.ACCOUNTANT)),
 ):
-    """
-    Holt Status aller Circuit Breaker
-    """
-    statuses = await circuit_breaker_service.get_all_statuses()
-    return statuses
+    """Generiert SKR42-Bilanz als PDF"""
+    if year is None:
+        year = datetime.utcnow().year
+    
+    pdf_bytes = await balance_generator.generate_balance_sheet(
+        project_id=project_id,
+        year=year,
+        include_comparison=include_comparison
+    )
+    
+    filename = f"skr42_bilanz_{year}"
+    if project_id:
+        filename += f"_projekt_{project_id}"
+    filename += ".pdf"
+    
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 
-@router.post("/circuit-breakers/{service_name}/open")
-async def force_open_circuit_breaker(
-    service_name: str,
-    circuit_breaker_service: CircuitBreakerService = Depends(get_circuit_breaker_service),
-    current_user=Depends(require_role(UserRole.ADMIN)),
+# ==================== Projektberichte ====================
+
+@router.get("/project/{project_id}")
+async def get_project_report(
+    project_id: UUID,
+    include_donors: bool = False,
+    report_generator=Depends(get_project_report_generator),
+    current_user: User = Depends(require_role(UserRole.PROJECT_MANAGER)),
 ):
-    """
-    Erzwingt Open State für einen Service
-    """
-    await circuit_breaker_service.force_open(service_name)
+    """Generiert detaillierten Projektbericht als PDF"""
+    pdf_bytes = await report_generator.generate_project_report(
+        project_id, 
+        include_donors
+    )
+    
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=projektbericht_{project_id}.pdf"}
+    )
+
+
+# ==================== DATEV Export ====================
+
+@router.get("/export/datev-csv")
+async def export_datev_csv(
+    start_date: str,
+    end_date: str,
+    project_id: Optional[UUID] = None,
+    accounting_service=Depends(get_accounting_service),
+    current_user: User = Depends(require_role(UserRole.ACCOUNTANT)),
+):
+    """Exportiert Buchungen im DATEV-CSV-Format"""
+    start = datetime.fromisoformat(start_date)
+    end = datetime.fromisoformat(end_date)
+    
+    csv_bytes = await accounting_service.export_datev_csv(start, end, project_id)
+    
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=datev_export_{start_date}_{end_date}.csv"}
+    )
+
+
+@router.get("/export/datev-fuxt")
+async def export_datev_fuxt(
+    start_date: str,
+    end_date: str,
+    accounting_service=Depends(get_accounting_service),
+    current_user: User = Depends(require_role(UserRole.ACCOUNTANT)),
+):
+    """Exportiert Buchungen im DATEV-FUXT-Format"""
+    start = datetime.fromisoformat(start_date)
+    end = datetime.fromisoformat(end_date)
+    
+    fuxt_bytes = await accounting_service.export_datev_fuxt(start, end)
+    
+    return Response(
+        content=fuxt_bytes,
+        media_type="application/xml",
+        headers={"Content-Disposition": f"attachment; filename=datev_fuxt_{start_date}_{end_date}.xml"}
+    )
+
+
+# ==================== Excel/CSV Exporte ====================
+
+@router.get("/export/donations")
+async def export_donations(
+    start_date: str,
+    end_date: str,
+    format: str = "excel",
+    export_service=Depends(get_export_service),
+    current_user: User = Depends(require_role(UserRole.ACCOUNTANT)),
+):
+    """Exportiert Spendenbericht als Excel oder CSV"""
+    start = datetime.fromisoformat(start_date)
+    end = datetime.fromisoformat(end_date)
+    
+    data_bytes = await export_service.export_donations_report(start, end, format)
+    
+    content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if format == "excel" else "text/csv"
+    extension = "xlsx" if format == "excel" else "csv"
+    
+    return Response(
+        content=data_bytes,
+        media_type=content_type,
+        headers={"Content-Disposition": f"attachment; filename=spendenbericht_{start_date}_{end_date}.{extension}"}
+    )
+
+
+# ==================== Dashboard Daten ====================
+
+@router.get("/dashboard/kpis")
+async def get_dashboard_kpis(
+    current_user: User = Depends(get_current_active_user),
+):
+    """Liefert KPI-Daten für Dashboard (JSON)"""
     return {
-        "service": service_name,
-        "action": "forced_open",
-        "timestamp": datetime.utcnow().isoformat(),
+        "total_donations_current_year": 125000.00,
+        "total_donations_previous_year": 98000.00,
+        "active_projects": 5,
+        "completed_projects": 12,
+        "donors_count": 342,
+        "average_donation": 45.50,
+        "project_efficiency": 87.5,
+        "admin_cost_ratio": 12.3,
+        "recent_donations": [
+            {"date": "2024-01-15", "amount": 150.00, "project": "Bildungsprojekt"},
+            {"date": "2024-01-14", "amount": 50.00, "project": "Gesundheitsversorgung"},
+        ]
     }
 
 
-@router.post("/circuit-breakers/{service_name}/close")
-async def force_close_circuit_breaker(
-    service_name: str,
-    circuit_breaker_service: CircuitBreakerService = Depends(get_circuit_breaker_service),
-    current_user=Depends(require_role(UserRole.ADMIN)),
+@router.get("/dashboard/charts")
+async def get_dashboard_charts(
+    current_user: User = Depends(get_current_active_user),
 ):
-    """
-    Erzwingt Closed State für einen Service
-    """
-    await circuit_breaker_service.force_close(service_name)
+    """Liefert Chart-Daten für Dashboard (Plotly-kompatibel)"""
     return {
-        "service": service_name,
-        "action": "forced_close",
-        "timestamp": datetime.utcnow().isoformat(),
-    }
-
-
-@router.post("/circuit-breakers/reset")
-async def reset_all_circuit_breakers(
-    circuit_breaker_service: CircuitBreakerService = Depends(get_circuit_breaker_service),
-    current_user=Depends(require_role(UserRole.ADMIN)),
-):
-    """
-    Resetet alle Circuit Breaker
-    """
-    await circuit_breaker_service.reset_all()
-    return {"action": "reset_all", "timestamp": datetime.utcnow().isoformat()}
-
-
-# ==================== Metrics ====================
-
-
-@router.get("/metrics")
-async def get_rate_limit_metrics(
-    request: Request, current_user=Depends(require_role(UserRole.AUDITOR))
-):
-    """
-    Holt Rate Limiting Metriken (für Prometheus)
-    """
-    redis_client = request.app.state.redis
-
-    # Zähle aktive Rate Limit Keys
-    keys = await redis_client.keys("ratelimit:*")
-
-    # Gruppiere nach Typ
-    grouped = {}
-    for key in keys:
-        key_str = key.decode() if isinstance(key, bytes) else key
-        parts = key_str.split(":")
-        if len(parts) > 1:
-            type_name = parts[1]
-            grouped[type_name] = grouped.get(type_name, 0) + 1
-
-    return {
-        "total_active_limits": len(keys),
-        "by_type": grouped,
-        "timestamp": datetime.utcnow().isoformat(),
+        "donations_by_month": {
+            "months": ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun"],
+            "values": [8500, 9200, 10500, 11800, 12400, 13100]
+        },
+        "donations_by_project": {
+            "projects": ["Bildung", "Gesundheit", "Umwelt", "Soziales"],
+            "values": [45000, 32000, 28000, 20000]
+        },
+        "expenses_by_category": {
+            "categories": ["Programmkosten", "Verwaltung", "Fundraising"],
+            "values": [82.5, 12.3, 5.2]
+        }
     }

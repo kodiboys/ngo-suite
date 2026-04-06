@@ -6,7 +6,8 @@ from datetime import datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
-
+from hypothesis import given
+from hypothesis import strategies as st
 import pytest
 
 from src.core.compliance.base import (
@@ -37,7 +38,7 @@ async def test_four_eyes_approval_request():
 
     # Prüfe Schwellwert
     with pytest.raises(ValueError):
-        bad_request = FourEyesRequest(
+        FourEyesRequest(
             entity_type="donation",
             entity_id=uuid4(),
             amount=Decimal("1000.00"),  # Unter Schwellwert
@@ -147,9 +148,6 @@ async def test_full_compliance_flow(db_session, redis_client):
 
 
 # ==================== Property-Based Tests ====================
-
-from hypothesis import given
-from hypothesis import strategies as st
 
 
 @given(

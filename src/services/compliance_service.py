@@ -570,7 +570,7 @@ class ComplianceService:
             from src.services.pdf_generator import DonationReceiptGenerator
 
             receipt_gen = DonationReceiptGenerator(session)
-            pdf_bytes = await receipt_gen.generate_donation_receipt(donation_id)
+            await receipt_gen.generate_donation_receipt(donation_id)
 
             # In Production: Upload zu S3/Wasabi
             # s3_url = await upload_to_s3(pdf_bytes, f"receipts/{tax_check.receipt_number}.pdf")

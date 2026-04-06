@@ -7,6 +7,8 @@ import json
 import logging
 from datetime import datetime
 from decimal import Decimal
+from uuid import uuid4
+from src.ports.payment_base import PaymentProviderError
 
 import httpx
 
@@ -53,7 +55,7 @@ class KlarnaProvider(PaymentProviderInterface):
         """Erstellt Klarna Order (Payment Intent)"""
         try:
             # Klarna spezifische Payment Method Codes
-            payment_method_codes = self._map_payment_method(request.payment_method)
+            self._map_payment_method(request.payment_method)
 
             order_data = {
                 "purchase_country": "DE",

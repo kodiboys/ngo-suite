@@ -3,8 +3,7 @@
 # REST Endpoints für Lagerverwaltung, Packlisten, Bewegungen, Bedarfe
 # Version: 3.0 - Erweitert um Need-Fulfillment, Transparenz & Trackability
 
-from datetime import UUID, datetime, timezone
-from typing import List, Optional
+from datetime import UTC, UUID, datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import selectinload
@@ -15,9 +14,7 @@ from src.core.entities.base import User, UserRole
 from src.core.entities.inventory import (
     InventoryItemCreate,
     PackingListCreate,
-    PackingListResponse,
     StockMovementCreate,
-    StockMovementType,
 )
 from src.core.entities.project import PackingList
 from src.services.inventory_service import InventoryService
@@ -84,7 +81,7 @@ async def create_item(
 
 @router.get("/items/low-stock")
 async def get_low_stock_items(
-    project_id: Optional[UUID] = None,
+    project_id: UUID | None = None,
     inventory_service: InventoryService = Depends(get_inventory_service),
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
@@ -117,7 +114,7 @@ async def get_expiring_items(
         le=365,
         description="Wie viele Tage ab heute soll der Ablauf berücksichtigt werden?",
     ),
-    project_id: Optional[UUID] = None,
+    project_id: UUID | None = None,
     inventory_service: InventoryService = Depends(get_inventory_service),
     current_user: User = Depends(require_role(UserRole.PROJECT_MANAGER)),
 ) -> dict:
@@ -129,7 +126,7 @@ async def get_expiring_items(
         project_id=project_id,
     )
 
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(UTC).replace(tzinfo=None)
 
     return {
         "data": [
@@ -152,7 +149,7 @@ async def get_expiring_items(
 
 @router.get("/items/for-needs")
 async def get_items_for_needs(
-    project_id: Optional[UUID] = None,
+    project_id: UUID | None = None,
     inventory_service: InventoryService = Depends(get_inventory_service),
     current_user: User = Depends(require_role(UserRole.PROJECT_MANAGER)),
 ) -> dict:
@@ -168,7 +165,7 @@ async def get_items_for_needs(
 
 @router.get("/transparency", response_model=None)
 async def get_transparency_inventory(
-    project_id: Optional[UUID] = None,
+    project_id: UUID | None = None,
     inventory_service: InventoryService = Depends(get_inventory_service),
 ) -> dict:
     """
@@ -276,7 +273,7 @@ async def get_item_movements(
 @router.get("/needs/{need_id}/fulfillment-history")
 async def get_need_fulfillment_history(
     need_id: UUID,
-    project_id: Optional[UUID] = None,
+    project_id: UUID | None = None,
     limit: int = Query(
         50,
         ge=1,
@@ -331,8 +328,8 @@ async def fulfill_need_from_inventory(
     quantity: int,
     recipient_name: str,
     recipient_address: str,
-    recipient_email: Optional[str] = None,
-    shipping_method: Optional[str] = None,
+    recipient_email: str | None = None,
+    shipping_method: str | None = None,
     request: Request | None = None,
     fulfillment_service: NeedFulfillmentService = Depends(get_need_fulfillment_service),
     current_user: User = Depends(require_role(UserRole.PROJECT_MANAGER)),
@@ -447,7 +444,7 @@ async def confirm_packing_list(
 @router.post("/packing-lists/{packing_list_id}/deliver")
 async def mark_as_delivered(
     packing_list_id: UUID,
-    signature_data: Optional[str] = None,
+    signature_data: str | None = None,
     inventory_service: InventoryService = Depends(get_inventory_service),
     current_user: User = Depends(require_role(UserRole.PROJECT_MANAGER)),
 ) -> dict:
@@ -551,7 +548,7 @@ async def track_packing_list(
 
 @router.get("/reports/inventory-value")
 async def get_inventory_value_report(
-    project_id: Optional[UUID] = None,
+    project_id: UUID | None = None,
     inventory_service: InventoryService = Depends(get_inventory_service),
     current_user: User = Depends(require_role(UserRole.ACCOUNTANT)),
 ) -> dict:

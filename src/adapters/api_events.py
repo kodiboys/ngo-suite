@@ -4,7 +4,6 @@
 # Version: 3.0.0
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -361,7 +360,7 @@ async def get_aggregate_stats(
         aggregates_by_type = {row.aggregate_type: row.count for row in agg_type_result}
 
         # Durchschnittliche Events pro Aggregate
-        avg_events_stmt = select(
+        select(
             EventStoreDB.aggregate_type, func.avg(func.count()).label("avg_events")
         ).group_by(EventStoreDB.aggregate_type)
 

@@ -3,8 +3,7 @@
 # REST Endpoints für CSV, Excel, JSON, DATEV Exporte, DSGVO, Finanzberichte, Backup & Bulk
 # Version: 3.0 - Erweitert um Backup‑Management & Bulk‑Export
 
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -56,7 +55,7 @@ async def export_donations(
     start_date: str,
     end_date: str,
     format: str = "excel",
-    project_id: Optional[UUID] = None,
+    project_id: UUID | None = None,
     include_personal_data: bool = True,
     export_service: ExportService = Depends(get_export_service),
     current_user: User = Depends(require_role(UserRole.ACCOUNTANT)),
@@ -110,7 +109,7 @@ async def export_donations(
 
 @router.get("/projects")
 async def export_projects(
-    status: Optional[str] = None,
+    status: str | None = None,
     format: str = "excel",
     export_service: ExportService = Depends(get_export_service),
     current_user: User = Depends(require_role(UserRole.PROJECT_MANAGER)),
@@ -182,8 +181,8 @@ async def export_my_data(
 async def export_audit_log(
     start_date: str,
     end_date: str,
-    entity_type: Optional[str] = None,
-    user_id: Optional[UUID] = None,
+    entity_type: str | None = None,
+    user_id: UUID | None = None,
     format: str = "excel",
     export_service: ExportService = Depends(get_export_service),
     current_user: User = Depends(require_role(UserRole.AUDITOR)),
@@ -294,7 +293,7 @@ async def list_backups(
     backup_type: str = "daily",
     backup_service: WasabiBackupService = Depends(get_backup_service),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
-) -> List[dict]:
+) -> list[dict]:
     """
     Listet alle verfügbaren Backups auf.
     """
@@ -330,7 +329,7 @@ async def restore_backup(
     return {
         "success": success,
         "backup_id": backup_id,
-        "restored_at": datetime.now(timezone.utc).isoformat(),
+        "restored_at": datetime.now(UTC).isoformat(),
         "restored_by": str(current_user.id),
     }
 
@@ -353,7 +352,7 @@ async def verify_backup(
     return {
         "backup_id": backup_id,
         "is_valid": is_valid,
-        "verified_at": datetime.now(timezone.utc).isoformat(),
+        "verified_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -382,8 +381,8 @@ async def create_bulk_export(
             detail="start_date und end_date müssen im ISO-Format sein",
         )
 
-    exports: List[bytes] = []
-    filenames: List[str] = []
+    exports: list[bytes] = []
+    filenames: list[str] = []
 
     if include_donations:
         donations_data = await export_service.export_donations(

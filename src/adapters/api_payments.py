@@ -3,19 +3,21 @@
 # REST Endpoints für Zahlungen, Webhooks, Refunds
 
 from decimal import Decimal
+from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request
+from fastapi import APIRouter, Depends, Request, BackgroundTasks
 
 from src.adapters.auth import get_current_active_user, require_role
+from src.adapters.dependencies import get_payment_service
 from src.core.entities.base import User, UserRole
 from src.ports.payment_base import CreatePaymentRequest, PaymentProvider
 from src.services.payment_service import PaymentService
 
 router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
 
-# ==================== Public Endpoints ====================
 
+# ==================== Public Endpoints ====================
 
 @router.post("/create-donation")
 async def create_donation(
@@ -29,7 +31,9 @@ async def create_donation(
     Unterstützt Stripe, PayPal, Klarna
     """
     result = await payment_service.create_donation_with_payment(
-        request=payment_request, user_id=current_user.id, ip_address=request.client.host
+        request=payment_request,
+        user_id=current_user.id,
+        ip_address=request.client.host
     )
     return result
 
@@ -49,7 +53,6 @@ async def get_payment_status(
 
 # ==================== Webhook Endpoints (kein Auth) ====================
 
-
 @router.post("/webhook/stripe")
 async def stripe_webhook(
     request: Request,
@@ -62,12 +65,15 @@ async def stripe_webhook(
     """
     payload = await request.body()
     signature = request.headers.get("stripe-signature")
-
+    
     # Async verarbeiten (nicht blockieren)
     background_tasks.add_task(
-        payment_service.handle_webhook, PaymentProvider.STRIPE, payload, signature
+        payment_service.handle_webhook,
+        PaymentProvider.STRIPE,
+        payload,
+        signature
     )
-
+    
     return {"received": True}
 
 
@@ -82,11 +88,14 @@ async def paypal_webhook(
     """
     payload = await request.body()
     signature = request.headers.get("paypal-transmission-sig")
-
+    
     background_tasks.add_task(
-        payment_service.handle_webhook, PaymentProvider.PAYPAL, payload, signature
+        payment_service.handle_webhook,
+        PaymentProvider.PAYPAL,
+        payload,
+        signature
     )
-
+    
     return {"received": True}
 
 
@@ -101,22 +110,24 @@ async def klarna_webhook(
     """
     payload = await request.body()
     signature = request.headers.get("klarna-signature")
-
+    
     background_tasks.add_task(
-        payment_service.handle_webhook, PaymentProvider.KLARNA, payload, signature
+        payment_service.handle_webhook,
+        PaymentProvider.KLARNA,
+        payload,
+        signature
     )
-
+    
     return {"received": True}
 
 
 # ==================== Admin Endpoints ====================
 
-
 @router.post("/refund/{donation_id}")
 async def refund_donation(
     donation_id: UUID,
-    amount: Decimal | None = None,
-    reason: str | None = None,
+    amount: Optional[Decimal] = None,
+    reason: Optional[str] = None,
     payment_service: PaymentService = Depends(get_payment_service),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):
@@ -124,7 +135,10 @@ async def refund_donation(
     Rückerstattung einer Spende (Admin only)
     """
     result = await payment_service.refund_donation(
-        donation_id=donation_id, amount=amount, reason=reason, user_id=current_user.id
+        donation_id=donation_id,
+        amount=amount,
+        reason=reason,
+        user_id=current_user.id
     )
     return result
 

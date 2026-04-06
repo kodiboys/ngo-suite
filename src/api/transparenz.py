@@ -5,18 +5,14 @@
 import hashlib
 import hmac
 from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Optional
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, Field
-from sqlalchemy import extract, func, select
+from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.compliance.merkle import MerkleTreeService
 from src.core.entities.base import Donation, Project
-from src.core.entities.needs import NeedPriority, NeedStatus, ProjectNeed
 
 router = APIRouter(prefix="/api/v1/transparenz", tags=["transparenz"])
 
@@ -42,7 +38,7 @@ class TransparencyDonation(BaseModel):
     date: str
     project_name: str
     amount: float
-    category: Optional[str] = None
+    category: str | None = None
 
 
 class TransparencyTimelinePoint(BaseModel):
@@ -95,9 +91,9 @@ def generate_transparency_hash(donor_email: str, salt: str | None = None) -> str
 @router.get("/")
 async def get_transparency_data(
     request: Request,
-    jahr: Optional[int] = Query(None, description="Filter nach Jahr", ge=2020, le=2030),
-    projekt: Optional[str] = Query(None, description="Filter nach Projekt (Name oder ID)"),
-    kat: Optional[str] = Query(None, description="Filter nach Kategorie"),
+    jahr: int | None = Query(None, description="Filter nach Jahr", ge=2020, le=2030),
+    projekt: str | None = Query(None, description="Filter nach Projekt (Name oder ID)"),
+    kat: str | None = Query(None, description="Filter nach Kategorie"),
     limit: int = Query(100, description="Max. Anzahl Spenden", ge=1, le=1000),
     offset: int = Query(0, description="Offset für Paginierung", ge=0),
     session: AsyncSession = Depends(get_session),

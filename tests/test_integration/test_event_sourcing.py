@@ -69,7 +69,7 @@ class TestEventStore:
         )
 
         # Try to append with wrong expected version
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(Exception):
             await store.append_event(
                 aggregate_id=aggregate_id,
                 aggregate_type="Donation",

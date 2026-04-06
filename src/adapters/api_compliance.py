@@ -1,8 +1,8 @@
 # FILE: src/adapters/api_compliance.py
 # MODULE: Compliance API Endpoints (FastAPI)
 
-from datetime import UUID, datetime, timezone
-from typing import Annotated, List, Optional
+from datetime import UTC, UUID, datetime
+from typing import Annotated
 
 from fastapi import (
     APIRouter,
@@ -72,7 +72,7 @@ async def request_four_eyes_approval(
 @router.post("/four-eyes/{approval_id}/approve")
 async def approve_transaction(
     approval_id: UUID,
-    comment: Optional[str] = None,
+    comment: str | None = None,
     request: Request | None = None,
     compliance_service: ComplianceService = Depends(get_compliance_service),
     current_user: User = Depends(require_role(UserRole.ACCOUNTANT)),
@@ -164,10 +164,10 @@ async def check_money_laundering(
     entity_type: str,
     entity_id: UUID,
     amount: float,
-    donor_name: Optional[str] = None,
-    donor_email: Optional[str] = None,
-    donor_country: Optional[str] = None,
-    payment_method: Optional[str] = None,
+    donor_name: str | None = None,
+    donor_email: str | None = None,
+    donor_country: str | None = None,
+    payment_method: str | None = None,
     request: Request | None = None,
     compliance_service: ComplianceService = Depends(get_compliance_service),
     current_user: User = Depends(require_role(UserRole.ACCOUNTANT)),
@@ -311,7 +311,7 @@ async def get_four_eyes_report(
     """
     Report ueber alle 4 Auge-Freigaben im Zeitraum.
     """
-    created_at = datetime.now(timezone.utc)
+    created_at = datetime.now(UTC)
 
     return {
         "data": {
@@ -340,7 +340,7 @@ async def get_money_laundering_report(
     """
     Report ueber alle Geldwaesche Verdachtsfaelle im Zeitraum.
     """
-    created_at = datetime.now(timezone.utc)
+    created_at = datetime.now(UTC)
 
     return {
         "data": {

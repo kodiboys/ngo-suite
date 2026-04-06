@@ -5,7 +5,8 @@
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
-
+from hypothesis import given
+from hypothesis import strategies as st
 import pytest
 
 from src.core.events.event_store import (
@@ -129,7 +130,7 @@ async def test_full_event_sourcing_flow(db_session):
     aggregate_id = uuid4()
 
     # 1. Append Events
-    event1 = await event_store.append_event(
+    await event_store.append_event(
         aggregate_id=aggregate_id,
         aggregate_type="Donation",
         event_type=EventType.DONATION_CREATED,
@@ -137,7 +138,7 @@ async def test_full_event_sourcing_flow(db_session):
         user_id=uuid4(),
     )
 
-    event2 = await event_store.append_event(
+    await event_store.append_event(
         aggregate_id=aggregate_id,
         aggregate_type="Donation",
         event_type=EventType.DONATION_CONFIRMED,
@@ -189,10 +190,6 @@ def test_event_serialization_benchmark(benchmark):
 
 
 # ==================== Property-Based Tests ====================
-
-from hypothesis import given
-from hypothesis import strategies as st
-
 
 @given(
     amount=st.decimals(min_value=0.01, max_value=100000, places=2),

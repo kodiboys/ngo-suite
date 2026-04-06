@@ -7,6 +7,8 @@ from datetime import datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
+from hypothesis import given
+from hypothesis import strategies as st
 
 import pandas as pd
 import pytest
@@ -143,10 +145,6 @@ async def test_financial_report_export(db_session):
 
 
 # ==================== Property-Based Tests ====================
-
-from hypothesis import given
-from hypothesis import strategies as st
-
 
 @given(
     amount=st.decimals(min_value=0.01, max_value=100000, places=2),

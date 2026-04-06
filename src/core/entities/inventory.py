@@ -6,17 +6,15 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, validator
 from sqlalchemy import (
-    JSON,
     Boolean,
     CheckConstraint,
     Column,
     DateTime,
-    Float,
     ForeignKey,
     Index,
     Integer,
@@ -30,7 +28,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, validates
 
-from src.core.entities.base import Base, Project
+from src.core.entities.base import Base
 
 # ==================== Enums ====================
 
@@ -528,18 +526,18 @@ class InventoryItemCreate(BaseModel):
     """API Schema für neue Lagerartikel (v3.0 mit need_id)"""
 
     name: str = Field(..., min_length=3, max_length=200)
-    description: Optional[str] = None
+    description: str | None = None
     sku: str = Field(..., min_length=3, max_length=50)
     category: ItemCategory = ItemCategory.OTHER
     condition: ItemCondition = ItemCondition.GOOD
     project_id: UUID
-    need_id: Optional[UUID] = None  # v3.0: Verknüpfung mit Bedarf
+    need_id: UUID | None = None  # v3.0: Verknüpfung mit Bedarf
     quantity: int = Field(0, ge=0)
     min_stock_level: int = Field(0, ge=0)
-    unit_price: Optional[Decimal] = Field(None, ge=0)
-    warehouse_location: Optional[str] = None
-    batch_number: Optional[str] = None
-    expiration_date: Optional[datetime] = None
+    unit_price: Decimal | None = Field(None, ge=0)
+    warehouse_location: str | None = None
+    batch_number: str | None = None
+    expiration_date: datetime | None = None
     requires_special_handling: bool = False
     show_on_transparency: bool = True  # v3.0
 
@@ -557,11 +555,11 @@ class StockMovementCreate(BaseModel):
     item_id: UUID
     movement_type: StockMovementType
     quantity: int = Field(..., gt=0)
-    reason: Optional[str] = None
-    destination_location: Optional[str] = None
-    reference_type: Optional[str] = None
-    reference_id: Optional[UUID] = None
-    need_id: Optional[UUID] = None  # v3.0: Verknüpfung mit Bedarf
+    reason: str | None = None
+    destination_location: str | None = None
+    reference_type: str | None = None
+    reference_id: UUID | None = None
+    need_id: UUID | None = None  # v3.0: Verknüpfung mit Bedarf
 
 
 class PackingListCreate(BaseModel):
@@ -570,12 +568,12 @@ class PackingListCreate(BaseModel):
     project_id: UUID
     recipient_name: str = Field(..., min_length=3)
     recipient_address: str = Field(..., min_length=5)
-    recipient_email: Optional[str] = None
+    recipient_email: str | None = None
     shipping_date: datetime
-    shipping_method: Optional[str] = None
-    items: List[Dict[str, Any]]  # [{item_id, quantity, need_id?}]
-    need_ids: List[UUID] = []  # v3.0: Erfüllte Bedarfe
-    notes: Optional[str] = None
+    shipping_method: str | None = None
+    items: list[dict[str, Any]]  # [{item_id, quantity, need_id?}]
+    need_ids: list[UUID] = []  # v3.0: Erfüllte Bedarfe
+    notes: str | None = None
     show_on_transparency: bool = True  # v3.0
 
 
@@ -587,9 +585,9 @@ class PackingListResponse(BaseModel):
     project_id: UUID
     recipient_name: str
     status: str
-    items: List[Dict[str, Any]]
-    pdf_url: Optional[str]
-    transparency_hash: Optional[str] = None  # v3.0
+    items: list[dict[str, Any]]
+    pdf_url: str | None
+    transparency_hash: str | None = None  # v3.0
     created_at: datetime
 
     class Config:
@@ -602,5 +600,5 @@ class NeedFulfillmentRequest(BaseModel):
     need_id: UUID
     quantity: int = Field(..., gt=0)
     item_id: UUID  # Aus welchem Lager wird entnommen
-    shipping_method: Optional[str] = None
-    notes: Optional[str] = None
+    shipping_method: str | None = None
+    notes: str | None = None

@@ -4,7 +4,7 @@
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
@@ -120,7 +120,7 @@ class SocialMediaService:
                     "scheduled_at": post.scheduled_at.isoformat() if post.scheduled_at else None,
                 },
                 ip_address="api",
-                retention_until=datetime.now(timezone.utc) + timedelta(days=365),
+                retention_until=datetime.now(UTC) + timedelta(days=365),
             )
             session.add(audit)
             await session.commit()
@@ -171,7 +171,7 @@ class SocialMediaService:
             try:
                 # Stelle sicher, dass Token gültig ist
                 if account.token_expires_at and account.token_expires_at <= datetime.now(
-                    timezone.utc
+                    UTC
                 ):
                     account = await provider.refresh_token(account)
                     await self._update_account(session, account)
@@ -193,7 +193,7 @@ class SocialMediaService:
                     entity_id=post.id,
                     new_values={"platform_post_id": post.platform_post_id},
                     ip_address="system",
-                    retention_until=datetime.now(timezone.utc) + timedelta(days=365),
+                    retention_until=datetime.now(UTC) + timedelta(days=365),
                 )
                 session.add(audit)
                 await session.commit()
@@ -265,7 +265,7 @@ class SocialMediaService:
                         entity_id=post.id,
                         old_values={"platform_post_id": post.platform_post_id},
                         ip_address="api",
-                        retention_until=datetime.now(timezone.utc) + timedelta(days=365),
+                        retention_until=datetime.now(UTC) + timedelta(days=365),
                     )
                     session.add(audit)
                     await session.commit()
@@ -341,7 +341,7 @@ class SocialMediaService:
                 # Update bestehendes Konto
                 existing.access_token = access_token
                 existing.refresh_token = refresh_token
-                existing.updated_at = datetime.now(timezone.utc)
+                existing.updated_at = datetime.now(UTC)
                 account = existing
             else:
                 # Neues Konto
@@ -446,7 +446,7 @@ class SocialMediaService:
                 engagement_rate=post.engagement_rate,
                 error_message=post.error_message,
                 retry_count=post.retry_count,
-                updated_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(UTC),
             )
         )
         await session.execute(stmt)
@@ -461,7 +461,7 @@ class SocialMediaService:
                 access_token=account.access_token,
                 refresh_token=account.refresh_token,
                 token_expires_at=account.token_expires_at,
-                updated_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(UTC),
             )
         )
         await session.execute(stmt)
