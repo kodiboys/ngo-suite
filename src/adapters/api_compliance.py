@@ -2,16 +2,17 @@
 # MODULE: Compliance API Endpoints (FastAPI)
 # REST Endpoints für 4‑Augen‑Freigabe, Geldwäscheprüfungen, Reports
 
-from datetime import datetime, timezone, UUID
+from datetime import datetime, timezone
+from uuid import UUID  # Korrekt: UUID kommt aus uuid
 from typing import Optional, List
 
-from fastapi import APIRouter, Depends, Query, Request, HTTPException
+# File und UploadFile korrekt importiert
+from fastapi import APIRouter, Depends, Query, Request, HTTPException, File, UploadFile
 
 from src.adapters.auth import get_current_active_user, require_role
 from src.core.compliance.base import FourEyesRequest
 from src.core.entities.base import User, UserRole
 from src.services.compliance_service import ComplianceService
-
 
 router = APIRouter(
     prefix="/api/v1/compliance",
@@ -239,31 +240,33 @@ async def generate_tax_receipt(
 async def archive_document(
     record_type: str,
     record_id: UUID,
-    filename: str,
-    # NOTE: In Production: File / raw bytes kommen als body.
-    # Hier Demo‑Placeholder; in realer API file‑Upload‑Route.
+    # Wir nutzen UploadFile für echte Binärdaten
+    file: UploadFile = File(...), 
     compliance_service: ComplianceService = Depends(get_compliance_service),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ) -> dict:
     """
-    Archiviert Dokument GoBD‑konform (mit Hash‑Basis, 10‑Jahres‑Retentions‑Timeline).
+    Archiviert Dokument GoBD‑konform.
     """
-    content: bytes = b"GoBD‑secure PDF dummy. Will be replaced by file upload in production."
-
+    # 1. Dateiinhalt lesen
+    content = await file.read()
+    
+    # 2. Archivierungsprozess (Service berechnet SHA-256 Hash und setzt 10-Jahres-Frist)
     archive = await compliance_service.archive_for_gobd(
         record_type=record_type,
         record_id=record_id,
         content=content,
-        filename=filename,
+        filename=file.filename,
         created_by=current_user.id,
     )
 
     return {
+        "status": "archived",
         "data": {
             "archive_id": str(archive.id),
-            "record_hash": archive.record_hash[:16] + "...",
+            "sha256": archive.record_hash,
+            "retention_period": "10 years",
             "retention_until": archive.retention_until.isoformat(),
-            "message": "Document archived successfully",
         }
     }
 
