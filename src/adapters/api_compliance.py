@@ -1,6 +1,5 @@
 # FILE: src/adapters/api_compliance.py
 # MODULE: Compliance API Endpoints (FastAPI)
-# REST Endpoints for 4-Auge-Freigabe, Geldwäscheprüfungen, Reports
 
 from datetime import datetime, timezone, UUID
 from typing import Optional, List, Annotated
@@ -54,9 +53,7 @@ async def request_four_eyes_approval(
     compliance_service: ComplianceService = Depends(get_compliance_service),
     current_user: User = Depends(require_role(UserRole.PROJECT_MANAGER)),
 ) -> dict:
-    """
-    Fordert 4-Auge-Freigabe für Transaktion > 5.000 Euro an.
-    """
+
     approval = await compliance_service.request_four_eyes_approval(
         request=approval_request,
         initiator_id=current_user.id,
@@ -138,7 +135,7 @@ async def get_pending_approvals(
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
     """
-    Holt ausstehende 4-Auge-Freigaben fuer den aktuellen Benutzer.
+    Holt ausstehende 4 Auge Freigaben fuer den aktuellen Benutzer.
     """
     approvals = await compliance_service.get_pending_approvals(user_id=current_user.id)
 
@@ -160,7 +157,7 @@ async def get_pending_approvals(
     }
 
 
-# ==================== Geldwäscheprüfung ====================
+# ==================== Geldwaescheprüfung ====================
 
 
 @router.post("/money-laundering/check")
@@ -177,7 +174,7 @@ async def check_money_laundering(
     current_user: User = Depends(require_role(UserRole.ACCOUNTANT)),
 ) -> dict:
     """
-    Führt Geldwäscheprüfung für eine Transaktion durch.
+    Fuehrt Geldwaeschepruefung für eine Transaktion durch.
     """
     from decimal import Decimal
 
@@ -207,7 +204,7 @@ async def check_money_laundering(
     }
 
 
-# ==================== Steuer-Compliance ====================
+# ==================== Steuer Compliance ====================
 
 
 @router.post("/tax/validate-vat")
@@ -218,7 +215,7 @@ async def validate_vat_id(
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
     """
-    Validiert Umsatzsteuer-ID über VIES-basierten Service.
+    Validiert Umsatzsteuer-ID über VIES basierten Service.
     """
     result = await compliance_service.validate_vat_id(vat_id, country_code)
 
@@ -257,7 +254,7 @@ async def archive_document(
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ) -> dict:
     """
-    Archiviert Dokument GoBD-konform (mit File-Upload).
+    Archiviert Dokument GoBD konform (mit File Upload).
     """
     content = await file.read()
 
@@ -289,7 +286,7 @@ async def get_compliance_dashboard(
     current_user: User = Depends(require_role(UserRole.COMPLIANCE_OFFICER)),
 ) -> dict:
     """
-    Compliance-Dashboard mit KPIs und Metriken (transparenzfaehig).
+    Compliance Dashboard mit KPIs und Metriken (transparenzfaehig).
     """
     dashboard = await compliance_service.get_compliance_dashboard()
 
@@ -303,17 +300,17 @@ async def get_compliance_dashboard(
 async def get_four_eyes_report(
     start_date: datetime = Query(
         ...,
-        description="Startdatum des Berichts (inkl. UTC-Zeitzone)",
+        description="Startdatum des Berichts (inkl. UTC Zeitzone)",
     ),
     end_date: datetime = Query(
         ...,
-        description="Enddatum des Berichts (inkl. UTC-Zeitzone)",
+        description="Enddatum des Berichts (inkl. UTC Zeitzone)",
     ),
     compliance_service: ComplianceService = Depends(get_compliance_service),
     current_user: User = Depends(require_role(UserRole.COMPLIANCE_OFFICER)),
 ) -> dict:
     """
-    Report ueber alle 4-Auge-Freigaben im Zeitraum.
+    Report ueber alle 4 Auge-Freigaben im Zeitraum.
     """
     created_at = datetime.now(timezone.utc)
 
@@ -342,7 +339,7 @@ async def get_money_laundering_report(
     current_user: User = Depends(require_role(UserRole.COMPLIANCE_OFFICER)),
 ) -> dict:
     """
-    Report ueber alle Geldwaesche-Verdachtsfaelle im Zeitraum.
+    Report ueber alle Geldwaesche Verdachtsfaelle im Zeitraum.
     """
     created_at = datetime.now(timezone.utc)
 
