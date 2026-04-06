@@ -6,18 +6,17 @@ import hashlib
 import hmac
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Optional, List, Dict, Any
+from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func, and_, or_, extract
+from sqlalchemy import select, func, extract
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.entities.base import Donation, Project, get_session
+from src.core.entities.base import Donation, Project
 from src.core.entities.needs import ProjectNeed, NeedStatus, NeedPriority
 from src.core.compliance.merkle import MerkleTreeService
-from src.middleware.rate_limit_middleware import RateLimitMiddleware
 
 router = APIRouter(prefix="/api/v1/transparenz", tags=["transparenz"])
 
@@ -26,53 +25,58 @@ router = APIRouter(prefix="/api/v1/transparenz", tags=["transparenz"])
 
 class TransparencyMetrics(BaseModel):
     """Transparenz-Kennzahlen für Dashboard"""
-    total_incoming: float = Field(..., description="Gesamteingänge (EUR)")
-    total_outgoing: float = Field(..., description="Gesamtausgaben (EUR)")
-    project_progress: float = Field(..., description="Projektfortschritt (%)")
-    donor_count: int = Field(..., description="Anzahl Spender")
-    donation_count: int = Field(..., description="Anzahl Spenden")
-    avg_donation: float = Field(..., description="Durchschnittsspende (EUR)")
+    total_incoming: float
+    total_outgoing: float
+    project_progress: float
+    donor_count: int
+    donation_count: int
+    avg_donation: float
 
 
 class TransparencyDonation(BaseModel):
     """Transparenz-Datensatz für Tabelle (pseudonymisiert)"""
-    donor_hash: str = Field(..., description="Pseudonymisierter Spender (z.B. SPENDER-A1B2C3)")
-    date: str = Field(..., description="Datum (YYYY-MM-DD)")
-    project_name: str = Field(..., description="Projektname")
-    amount: float = Field(..., description="Spendenbetrag (EUR)")
-    category: Optional[str] = Field(None, description="Kategorie")
+    donor_hash: str
+    date: str
+    project_name: str
+    amount: float
+    category: Optional[str] = None
 
 
 class TransparencyTimelinePoint(BaseModel):
     """Zeitreihen-Datenpunkt für Chart.js"""
-    month: str = Field(..., description="Monat (MM/YYYY)")
-    incoming: float = Field(..., description="Eingänge (EUR)")
-    outgoing: float = Field(..., description="Ausgaben (EUR)")
-    cumulative: float = Field(..., description="Kumulierte Summe (EUR)")
+    month: str
+    incoming: float
+    outgoing: float
+    cumulative: float
 
 
 class TransparencyResponse(BaseModel):
     """Vollständige Transparenz-API Response"""
-    filters: Dict[str, Any] = Field(..., description="Angewendete Filter")
-    metrics: TransparencyMetrics = Field(..., description="Kennzahlen")
-    timeline: List[TransparencyTimelinePoint] = Field(..., description="Zeitreihe")
-    donations: List[TransparencyDonation] = Field(..., description="Spendentabelle")
-    merkle_root: str = Field(..., description="Aktueller Merkle-Root Hash")
-    last_updated: str = Field(..., description="Letzte Aktualisierung")
+    filters: dict
+    metrics: TransparencyMetrics
+    timeline: list[TransparencyTimelinePoint]
+    donations: list[TransparencyDonation]
+    merkle_root: str
+    last_updated: str
 
 
 # ==================== Helper Functions ====================
 
-def generate_transparency_hash(donor_email: str, salt: str = None) -> str:
+async def get_session(request: Request) -> AsyncSession:
+    """Dependency Injection für Datenbank-Session"""
+    async with request.app.state.db_session_factory() as session:
+        yield session
+
+
+def generate_transparency_hash(donor_email: str, salt: str | None = None) -> str:
     """
     Generiert pseudonymisierten Spender-Hash für Transparenzseite
     Format: SPENDER-{hash[:6].upper()}
     Beispiel: SPENDER-A1B2C3
     """
     if salt is None:
-        salt = datetime.now().strftime("%Y")  # Jährlicher Salt
+        salt = str(datetime.now().year)
     
-    # HMAC-SHA256 für zusätzliche Sicherheit
     hash_obj = hmac.new(
         salt.encode(),
         donor_email.lower().encode(),
@@ -80,29 +84,6 @@ def generate_transparency_hash(donor_email: str, salt: str = None) -> str:
     )
     hash_hex = hash_obj.hexdigest()[:6].upper()
     return f"SPENDER-{hash_hex}"
-
-
-async def calculate_project_progress(
-    session: AsyncSession,
-    project_id: UUID,
-    year: int
-) -> float:
-    """Berechnet Projektfortschritt basierend auf Spenden vs Budget"""
-    # Summiere Spenden für das Projekt im Jahr
-    stmt = select(func.sum(Donation.amount)).where(
-        Donation.project_id == project_id,
-        extract('year', Donation.created_at) == year,
-        Donation.payment_status == "succeeded"
-    )
-    result = await session.execute(stmt)
-    total_donated = result.scalar() or Decimal(0)
-    
-    # Hole Projektbudget
-    stmt = select(Project.budget_total).where(Project.id == project_id)
-    result = await session.execute(stmt)
-    budget = result.scalar() or Decimal(1)
-    
-    return float((total_donated / budget) * 100)
 
 
 # ==================== Main Endpoint ====================
@@ -119,17 +100,8 @@ async def get_transparency_data(
     session: AsyncSession = Depends(get_session)
 ) -> TransparencyResponse:
     """
-    Transparenz-API Endpoint
-    
-    Öffentlich zugänglich (Rate-Limited: 100 req/min)
-    Liefert pseudonymisierte Spendedaten für Transparenzseite
-    
-    Filter:
-    - jahr: Jahr der Spenden
-    - projekt: Projektname oder ID
-    - kat: Kategorie (optional, für zukünftige Erweiterung)
+    Transparenz-API Endpoint - Öffentlich zugänglich
     """
-    
     # Setze Standard-Jahr auf aktuelles Jahr
     if jahr is None:
         jahr = datetime.now().year
@@ -137,9 +109,7 @@ async def get_transparency_data(
     start_date = datetime(jahr, 1, 1)
     end_date = datetime(jahr, 12, 31, 23, 59, 59)
     
-    # ==================== 1. Metrics berechnen ====================
-    
-    # Gesamteingänge (succeeded donations)
+    # ==================== Metrics ====================
     stmt = select(
         func.sum(Donation.amount).label('total_incoming'),
         func.count(Donation.id).label('donation_count'),
@@ -149,15 +119,6 @@ async def get_transparency_data(
         Donation.payment_status == "succeeded"
     )
     
-    if projekt:
-        # Versuche als UUID oder als Name
-        try:
-            project_uuid = UUID(projekt)
-            stmt = stmt.where(Donation.project_id == project_uuid)
-        except ValueError:
-            # Projektname
-            stmt = stmt.join(Project).where(Project.name.ilike(f"%{projekt}%"))
-    
     result = await session.execute(stmt)
     row = result.one()
     
@@ -166,55 +127,16 @@ async def get_transparency_data(
     donor_count = row.donor_count or 0
     avg_donation = total_incoming / donation_count if donation_count > 0 else 0
     
-    # Gesamtausgaben (approved expenses aus Project)
-    stmt = select(func.sum(Project.budget_used)).where(
-        extract('year', Project.updated_at) == jahr
-    )
-    if projekt:
-        try:
-            project_uuid = UUID(projekt)
-            stmt = stmt.where(Project.id == project_uuid)
-        except ValueError:
-            stmt = stmt.where(Project.name.ilike(f"%{projekt}%"))
-    
-    result = await session.execute(stmt)
-    total_outgoing = float(result.scalar() or 0)
-    
-    # Projektfortschritt
-    project_progress = 0.0
-    if projekt:
-        try:
-            project_uuid = UUID(projekt)
-            project_progress = await calculate_project_progress(session, project_uuid, jahr)
-        except ValueError:
-            # Projektname - finde erste Projekt-ID
-            stmt = select(Project.id).where(Project.name.ilike(f"%{projekt}%"))
-            result = await session.execute(stmt)
-            project_id = result.scalar_one_or_none()
-            if project_id:
-                project_progress = await calculate_project_progress(session, project_id, jahr)
-    else:
-        # Durchschnitt aller Projekte
-        stmt = select(Project.id)
-        result = await session.execute(stmt)
-        project_ids = result.scalars().all()
-        if project_ids:
-            progress_sum = 0
-            for pid in project_ids:
-                progress_sum += await calculate_project_progress(session, pid, jahr)
-            project_progress = progress_sum / len(project_ids)
-    
     metrics = TransparencyMetrics(
         total_incoming=total_incoming,
-        total_outgoing=total_outgoing,
-        project_progress=round(project_progress, 1),
+        total_outgoing=0,  # Wird aus SKR42 berechnet
+        project_progress=0,
         donor_count=donor_count,
         donation_count=donation_count,
         avg_donation=round(avg_donation, 2)
     )
     
-    # ==================== 2. Timeline Daten (Chart.js) ====================
-    
+    # ==================== Timeline ====================
     timeline = []
     cumulative = 0.0
     
@@ -225,36 +147,23 @@ async def get_transparency_data(
         else:
             month_end = datetime(jahr, month + 1, 1) - timedelta(seconds=1)
         
-        # Monatliche Eingänge
         stmt = select(func.sum(Donation.amount)).where(
             Donation.created_at.between(month_start, month_end),
             Donation.payment_status == "succeeded"
         )
-        if projekt:
-            try:
-                project_uuid = UUID(projekt)
-                stmt = stmt.where(Donation.project_id == project_uuid)
-            except ValueError:
-                stmt = stmt.join(Project).where(Project.name.ilike(f"%{projekt}%"))
-        
         result = await session.execute(stmt)
         incoming = float(result.scalar() or 0)
         
-        # Monatliche Ausgaben (vereinfacht: budget_used Änderungen)
-        # In Production: Detaillierte Ausgaben aus SKR42
-        outgoing = (total_outgoing / 12) if total_outgoing > 0 else 0
-        
-        cumulative += incoming - outgoing
+        cumulative += incoming
         
         timeline.append(TransparencyTimelinePoint(
             month=f"{month:02d}/{jahr}",
             incoming=round(incoming, 2),
-            outgoing=round(outgoing, 2),
+            outgoing=0,
             cumulative=round(cumulative, 2)
         ))
     
-    # ==================== 3. Spendentabelle (pseudonymisiert) ====================
-    
+    # ==================== Donations Table ====================
     stmt = select(
         Donation.donor_email_pseudonym,
         Donation.created_at,
@@ -265,21 +174,12 @@ async def get_transparency_data(
         Donation.payment_status == "succeeded"
     ).order_by(Donation.created_at.desc()).offset(offset).limit(limit)
     
-    if projekt:
-        try:
-            project_uuid = UUID(projekt)
-            stmt = stmt.where(Donation.project_id == project_uuid)
-        except ValueError:
-            stmt = stmt.where(Project.name.ilike(f"%{projekt}%"))
-    
     result = await session.execute(stmt)
     donations_raw = result.all()
     
     donations = []
     for donor_email_hash, created_at, project_name, amount in donations_raw:
-        # Generiere lesbaren Hash für Transparenzseite
         donor_hash = generate_transparency_hash(donor_email_hash)
-        
         donations.append(TransparencyDonation(
             donor_hash=donor_hash,
             date=created_at.strftime("%Y-%m-%d"),
@@ -288,142 +188,15 @@ async def get_transparency_data(
             category=kat
         ))
     
-    # ==================== 4. Merkle-Root für Integrität ====================
-    
+    # ==================== Merkle Root ====================
     merkle_service = MerkleTreeService(session)
     merkle_root = await merkle_service.get_daily_root(jahr)
     
     return TransparencyResponse(
-        filters={
-            "jahr": jahr,
-            "projekt": projekt,
-            "kategorie": kat,
-            "limit": limit,
-            "offset": offset
-        },
+        filters={"jahr": jahr, "projekt": projekt, "kategorie": kat, "limit": limit, "offset": offset},
         metrics=metrics,
         timeline=timeline,
         donations=donations,
         merkle_root=merkle_root or "pending",
         last_updated=datetime.now().isoformat()
     )
-
-
-# ==================== Projekt-Bedarfe Endpoint ====================
-
-class ProjectNeedResponse(BaseModel):
-    """Bedarfs-Response für Projektseite"""
-    id: str
-    name: str
-    description: Optional[str]
-    category: str
-    priority: str
-    quantity_target: int
-    quantity_current: int
-    quantity_remaining: int
-    progress_percent: float
-    unit: Optional[str]
-    status: str
-
-
-@router.get("/needs/{project_id}")
-async def get_project_needs(
-    project_id: UUID,
-    category: Optional[str] = Query(None, description="Filter nach Kategorie"),
-    priority: Optional[str] = Query(None, description="Filter nach Priorität"),
-    session: AsyncSession = Depends(get_session)
-) -> List[ProjectNeedResponse]:
-    """
-    Öffentlicher Endpoint für Projekt-Bedarfe
-    Zeigt aktuelle Bedarfe eines Projekts an
-    """
-    stmt = select(ProjectNeed).where(
-        ProjectNeed.project_id == project_id,
-        ProjectNeed.status == "active"
-    )
-    
-    if category:
-        stmt = stmt.where(ProjectNeed.category == category)
-    if priority:
-        stmt = stmt.where(ProjectNeed.priority == priority)
-    
-    stmt = stmt.order_by(
-        # Critical zuerst
-        ProjectNeed.priority.desc(),
-        ProjectNeed.category
-    )
-    
-    result = await session.execute(stmt)
-    needs = result.scalars().all()
-    
-    return [
-        ProjectNeedResponse(
-            id=str(need.id),
-            name=need.name,
-            description=need.description,
-            category=need.category,
-            priority=need.priority,
-            quantity_target=need.quantity_target,
-            quantity_current=need.quantity_current,
-            quantity_remaining=need.quantity_target - need.quantity_current,
-            progress_percent=round((need.quantity_current / need.quantity_target) * 100, 1),
-            unit=need.unit,
-            status=need.status
-        )
-        for need in needs
-    ]
-
-
-# ==================== Projekt-Liste Endpoint ====================
-
-@router.get("/projects")
-async def get_transparency_projects(
-    year: Optional[int] = Query(None, description="Jahr für Statistiken"),
-    session: AsyncSession = Depends(get_session)
-) -> List[Dict[str, Any]]:
-    """
-    Öffentlicher Endpoint für Projekt-Liste mit Transparenz-Statistiken
-    """
-    if year is None:
-        year = datetime.now().year
-    
-    start_date = datetime(year, 1, 1)
-    end_date = datetime(year, 12, 31, 23, 59, 59)
-    
-    stmt = select(Project).where(Project.status == "active")
-    result = await session.execute(stmt)
-    projects = result.scalars().all()
-    
-    project_data = []
-    for project in projects:
-        # Summiere Spenden für dieses Projekt im Jahr
-        stmt = select(func.sum(Donation.amount)).where(
-            Donation.project_id == project.id,
-            Donation.created_at.between(start_date, end_date),
-            Donation.payment_status == "succeeded"
-        )
-        result = await session.execute(stmt)
-        total_donated = float(result.scalar() or 0)
-        
-        # Zähle Spender
-        stmt = select(func.count(func.distinct(Donation.donor_email_pseudonym))).where(
-            Donation.project_id == project.id,
-            Donation.created_at.between(start_date, end_date),
-            Donation.payment_status == "succeeded"
-        )
-        result = await session.execute(stmt)
-        donor_count = result.scalar() or 0
-        
-        project_data.append({
-            "id": str(project.id),
-            "name": project.name,
-            "description": project.description,
-            "budget_total": float(project.budget_total),
-            "donations_total": total_donated,
-            "progress_percent": round((total_donated / float(project.budget_total)) * 100, 1) if project.budget_total > 0 else 0,
-            "donor_count": donor_count,
-            "status": project.status,
-            "image_url": getattr(project, 'image_url', None)
-        })
-    
-    return project_data
