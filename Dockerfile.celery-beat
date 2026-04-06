@@ -1,6 +1,6 @@
 # FILE: Dockerfile.celery-beat
 # MODULE: Celery Beat Container für Scheduled Tasks
-# Version: 3.0.0 - Für Merkle-Tree und tägliche Jobs
+# Version: 3.0.0 - Für Merkle-Tree und taeliche Jobs
 
 FROM python:3.12-slim
 
@@ -61,6 +61,6 @@ LABEL maintainer="anto@angels4ukraine.net"
 
 # Run celery beat with schedule file
 CMD ["celery", "-A", "src.core.events.event_bus", "beat", \
-     "--loglevel=info", \
-     "--schedule=/app/celerybeat-data/celerybeat-schedule", \
-     "--pidfile=/app/celerybeat-data/celerybeat.pid"]
+    "--loglevel=info", \
+    "--schedule=/app/celerybeat-data/celerybeat-schedule", \
+    "--pidfile=/app/celerybeat-data/celerybeat.pid"]

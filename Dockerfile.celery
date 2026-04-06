@@ -1,6 +1,6 @@
 # FILE: Dockerfile.celery
 # MODULE: Celery Worker Container für Background Tasks
-# Version: 3.0.0 - Optimiert für Produktion mit vollständigen Dependencies
+# Version: 3.0.0 - Optimiert für Produktion mit vollstaendigen Dependencies
 
 FROM python:3.12-slim
 
@@ -78,11 +78,11 @@ LABEL maintainer="anto@angels4ukraine.net"
 
 # Run celery worker with production settings
 CMD ["celery", "-A", "src.core.events.event_bus", "worker", \
-     "--loglevel=info", \
-     "--concurrency=4", \
-     "--max-tasks-per-child=100", \
-     "--time-limit=300", \
-     "--soft-time-limit=240", \
-     "--without-gossip", \
-     "--without-mingle", \
-     "--without-heartbeat"]
+    "--loglevel=info", \
+    "--concurrency=4", \
+    "--max-tasks-per-child=100", \
+    "--time-limit=300", \
+    "--soft-time-limit=240", \
+    "--without-gossip", \
+    "--without-mingle", \
+    "--without-heartbeat"]
