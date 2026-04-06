@@ -2,17 +2,27 @@
 # MODULE: Compliance API Endpoints (FastAPI)
 # REST Endpoints für 4-Augen-Freigabe, Geldwäscheprüfungen, Reports
 
-from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
+from typing import Optional, List
 from uuid import UUID
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request
-
-from src.adapters.auth import get_current_active_user, require_role
-from src.core.compliance.base import FourEyesRequest
-from src.core.entities.base import User, UserRole
 from src.services.compliance_service import ComplianceService
+from src.core.compliance.base import FourEyesRequest, ComplianceCheckResult
+from src.adapters.auth import get_current_active_user, require_role
+from src.core.entities.base import User, UserRole
 
 router = APIRouter(prefix="/api/v1/compliance", tags=["compliance"])
+
+
+# ==================== Dependency ====================
+
+async def get_compliance_service(request: Request) -> ComplianceService:
+    """Dependency Injection für Compliance Service"""
+    redis_client = request.app.state.redis
+    session_factory = request.app.state.db_session_factory
+    event_bus = request.app.state.event_bus
+    return ComplianceService(session_factory, redis_client, event_bus)
 
 
 # ==================== 4-Augen-Prinzip ====================
@@ -32,7 +42,7 @@ async def request_four_eyes_approval(
         initiator_id=current_user.id,
         ip_address=request.client.host
     )
-
+    
     return {
         "approval_id": str(approval.id),
         "status": approval.status.value,
@@ -44,7 +54,7 @@ async def request_four_eyes_approval(
 @router.post("/four-eyes/{approval_id}/approve")
 async def approve_transaction(
     approval_id: UUID,
-    comment: str | None = None,
+    comment: Optional[str] = None,
     request: Request = None,
     compliance_service: ComplianceService = Depends(get_compliance_service),
     current_user: User = Depends(require_role(UserRole.ACCOUNTANT))
@@ -58,7 +68,7 @@ async def approve_transaction(
         comment=comment,
         ip_address=request.client.host
     )
-
+    
     return {
         "approval_id": str(approval.id),
         "status": approval.status.value,
@@ -84,7 +94,7 @@ async def reject_transaction(
         reason=reason,
         ip_address=request.client.host
     )
-
+    
     return {
         "approval_id": str(approval.id),
         "status": approval.status.value,
@@ -101,7 +111,7 @@ async def get_pending_approvals(
     Holt ausstehende Freigaben für aktuellen Benutzer
     """
     approvals = await compliance_service.get_pending_approvals(current_user.id)
-
+    
     return [
         {
             "id": str(a.id),
@@ -125,10 +135,10 @@ async def check_money_laundering(
     entity_type: str,
     entity_id: UUID,
     amount: float,
-    donor_name: str | None = None,
-    donor_email: str | None = None,
-    donor_country: str | None = None,
-    payment_method: str | None = None,
+    donor_name: Optional[str] = None,
+    donor_email: Optional[str] = None,
+    donor_country: Optional[str] = None,
+    payment_method: Optional[str] = None,
     request: Request = None,
     compliance_service: ComplianceService = Depends(get_compliance_service),
     current_user: User = Depends(require_role(UserRole.ACCOUNTANT))
@@ -137,7 +147,7 @@ async def check_money_laundering(
     Führt Geldwäscheprüfung für Transaktion durch
     """
     from decimal import Decimal
-
+    
     ml_check = await compliance_service.check_money_laundering(
         entity_type=entity_type,
         entity_id=entity_id,
@@ -148,7 +158,7 @@ async def check_money_laundering(
         payment_method=payment_method,
         ip_address=request.client.host if request else None
     )
-
+    
     return {
         "check_id": str(ml_check.id),
         "risk_level": ml_check.risk_level.value,
@@ -204,7 +214,7 @@ async def archive_document(
     """
     # In Production: File content aus Request
     content = b"Sample PDF content"
-
+    
     archive = await compliance_service.archive_for_gobd(
         record_type=record_type,
         record_id=record_id,
@@ -212,7 +222,7 @@ async def archive_document(
         filename=filename,
         created_by=current_user.id
     )
-
+    
     return {
         "archive_id": str(archive.id),
         "record_hash": archive.record_hash[:16] + "...",
