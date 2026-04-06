@@ -1,18 +1,25 @@
 # FILE: src/adapters/api_compliance.py
 # MODULE: Compliance API Endpoints (FastAPI)
-# REST Endpoints für 4‑Augen‑Freigabe, Geldwäscheprüfungen, Reports
+# REST Endpoints for 4-Auge-Freigabe, Geldwäscheprüfungen, Reports
 
-from datetime import datetime, timezone
-from uuid import UUID  # Korrekt: UUID kommt aus uuid
-from typing import Optional, List
+from datetime import datetime, timezone, UUID
+from typing import Optional, List, Annotated
 
-# File und UploadFile korrekt importiert
-from fastapi import APIRouter, Depends, Query, Request, HTTPException, File, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    Query,
+    Request,
+    HTTPException,
+    File,
+    UploadFile,
+)
 
 from src.adapters.auth import get_current_active_user, require_role
 from src.core.compliance.base import FourEyesRequest
 from src.core.entities.base import User, UserRole
 from src.services.compliance_service import ComplianceService
+
 
 router = APIRouter(
     prefix="/api/v1/compliance",
@@ -22,9 +29,10 @@ router = APIRouter(
 
 # ==================== Dependency ====================
 
+
 def get_compliance_service(request: Request) -> ComplianceService:
     """
-    Dependency Injection für Compliance Service via request.app.state.
+    Dependency Injection for Compliance Service via request.app.state.
     """
     redis_client = request.app.state.redis
     session_factory = request.app.state.db_session_factory
@@ -36,7 +44,8 @@ def get_compliance_service(request: Request) -> ComplianceService:
     )
 
 
-# ==================== 4‑Augen‑Prinzip ====================
+# ==================== 4-Auge-Prinzip ====================
+
 
 @router.post("/four-eyes/request")
 async def request_four_eyes_approval(
@@ -46,7 +55,7 @@ async def request_four_eyes_approval(
     current_user: User = Depends(require_role(UserRole.PROJECT_MANAGER)),
 ) -> dict:
     """
-    Fordert 4‑Augen‑Freigabe für Transaktion > 5.000 € an.
+    Fordert 4-Auge-Freigabe für Transaktion > 5.000 Euro an.
     """
     approval = await compliance_service.request_four_eyes_approval(
         request=approval_request,
@@ -66,14 +75,14 @@ async def request_four_eyes_approval(
 
 @router.post("/four-eyes/{approval_id}/approve")
 async def approve_transaction(
-    approval_id: UUID,  # automatic FastAPI UUID‑Validation
+    approval_id: UUID,
     comment: Optional[str] = None,
     request: Request | None = None,
     compliance_service: ComplianceService = Depends(get_compliance_service),
     current_user: User = Depends(require_role(UserRole.ACCOUNTANT)),
 ) -> dict:
     """
-    Gibt eine Transaktion frei (2. Prüfer).
+    Gibt eine Transaktion frei (2. Pruefer).
     """
     approval = await compliance_service.approve_transaction(
         approval_id=approval_id,
@@ -129,7 +138,7 @@ async def get_pending_approvals(
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
     """
-    Holt ausstehende 4‑Augen‑Freigaben für den aktuellen Benutzer.
+    Holt ausstehende 4-Auge-Freigaben fuer den aktuellen Benutzer.
     """
     approvals = await compliance_service.get_pending_approvals(user_id=current_user.id)
 
@@ -153,10 +162,11 @@ async def get_pending_approvals(
 
 # ==================== Geldwäscheprüfung ====================
 
+
 @router.post("/money-laundering/check")
 async def check_money_laundering(
     entity_type: str,
-    entity_id: UUID,  # Path‑ / Body‑Validiert via FastAPI
+    entity_id: UUID,
     amount: float,
     donor_name: Optional[str] = None,
     donor_email: Optional[str] = None,
@@ -174,7 +184,7 @@ async def check_money_laundering(
     ml_check = await compliance_service.check_money_laundering(
         entity_type=entity_type,
         entity_id=entity_id,
-        amount=Decimal(str(amount)),  # money‑safe
+        amount=Decimal(str(amount)),
         donor_name=donor_name,
         donor_email=donor_email,
         donor_country=donor_country,
@@ -197,7 +207,8 @@ async def check_money_laundering(
     }
 
 
-# ==================== Steuer‑Compliance ====================
+# ==================== Steuer-Compliance ====================
+
 
 @router.post("/tax/validate-vat")
 async def validate_vat_id(
@@ -207,7 +218,7 @@ async def validate_vat_id(
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
     """
-    Validiert Umsatzsteuer‑ID über VIES‑basierten Service.
+    Validiert Umsatzsteuer-ID über VIES-basierten Service.
     """
     result = await compliance_service.validate_vat_id(vat_id, country_code)
 
@@ -224,7 +235,7 @@ async def generate_tax_receipt(
     current_user: User = Depends(require_role(UserRole.ACCOUNTANT)),
 ) -> dict:
     """
-    Generiert steuerliche Zuwendungsbescheinigung für eine Spende.
+    Generiert steuerliche Zuwendungsbescheinigung fuer eine Spende.
     """
     receipt = await compliance_service.generate_tax_receipt(donation_id)
 
@@ -234,24 +245,22 @@ async def generate_tax_receipt(
     return {"data": receipt}
 
 
-# ==================== GoBD‑Compliance ====================
+# ==================== GoBD-Compliance ====================
+
 
 @router.post("/gobd/archive")
 async def archive_document(
     record_type: str,
     record_id: UUID,
-    # Wir nutzen UploadFile für echte Binärdaten
-    file: UploadFile = File(...), 
+    file: Annotated[UploadFile, File(...)],
     compliance_service: ComplianceService = Depends(get_compliance_service),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ) -> dict:
     """
-    Archiviert Dokument GoBD‑konform.
+    Archiviert Dokument GoBD-konform (mit File-Upload).
     """
-    # 1. Dateiinhalt lesen
     content = await file.read()
-    
-    # 2. Archivierungsprozess (Service berechnet SHA-256 Hash und setzt 10-Jahres-Frist)
+
     archive = await compliance_service.archive_for_gobd(
         record_type=record_type,
         record_id=record_id,
@@ -267,11 +276,12 @@ async def archive_document(
             "sha256": archive.record_hash,
             "retention_period": "10 years",
             "retention_until": archive.retention_until.isoformat(),
-        }
+        },
     }
 
 
 # ==================== Dashboard & Reports ====================
+
 
 @router.get("/dashboard")
 async def get_compliance_dashboard(
@@ -279,7 +289,7 @@ async def get_compliance_dashboard(
     current_user: User = Depends(require_role(UserRole.COMPLIANCE_OFFICER)),
 ) -> dict:
     """
-    Compliance‑Dashboard mit KPIs und Metriken (transparenzfähig).
+    Compliance-Dashboard mit KPIs und Metriken (transparenzfaehig).
     """
     dashboard = await compliance_service.get_compliance_dashboard()
 
@@ -293,20 +303,19 @@ async def get_compliance_dashboard(
 async def get_four_eyes_report(
     start_date: datetime = Query(
         ...,
-        description="Startdatum des Berichts (inkl. UTC‑Zeitzone)",
+        description="Startdatum des Berichts (inkl. UTC-Zeitzone)",
     ),
     end_date: datetime = Query(
         ...,
-        description="Enddatum des Berichts (inkl. UTC‑Zeitzone)",
+        description="Enddatum des Berichts (inkl. UTC-Zeitzone)",
     ),
     compliance_service: ComplianceService = Depends(get_compliance_service),
     current_user: User = Depends(require_role(UserRole.COMPLIANCE_OFFICER)),
 ) -> dict:
     """
-    Report über alle 4‑Augen‑Freigaben im Zeitraum.
+    Report ueber alle 4-Auge-Freigaben im Zeitraum.
     """
     created_at = datetime.now(timezone.utc)
-    # Hier später: Query an Service‑Layer für Report‑Daten
 
     return {
         "data": {
@@ -314,7 +323,7 @@ async def get_four_eyes_report(
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
             "generated_at": created_at.isoformat(),
-            # NOTE: In Production: `report_data` aus `compliance_service.get_four_eyes_report(...)`
+            # NOTE: In Production: report_data aus compliance_service.get_four_eyes_report(...)
         }
     }
 
@@ -323,20 +332,19 @@ async def get_four_eyes_report(
 async def get_money_laundering_report(
     start_date: datetime = Query(
         ...,
-        description="Startdatum des Berichts (inkl. UTC‑Zeitzone)",
+        description="Startdatum des Berichts (inkl. UTC-Zeitzone)",
     ),
     end_date: datetime = Query(
         ...,
-        description="Enddatum des Berichts (inkl. UTC‑Zeitzone)",
+        description="Enddatum des Berichts (inkl. UTC-Zeitzone)",
     ),
     compliance_service: ComplianceService = Depends(get_compliance_service),
     current_user: User = Depends(require_role(UserRole.COMPLIANCE_OFFICER)),
 ) -> dict:
     """
-    Report über alle Geldwäsche‑Verdachtsfälle im Zeitraum.
+    Report ueber alle Geldwaesche-Verdachtsfaelle im Zeitraum.
     """
     created_at = datetime.now(timezone.utc)
-    # Hier später: `report_data = await compliance_service.get_money_laundering_report(...)`
 
     return {
         "data": {
@@ -344,6 +352,6 @@ async def get_money_laundering_report(
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
             "generated_at": created_at.isoformat(),
-            # NOTE: `report_data` via Service‑Layer
+            # NOTE: report_data aus compliance_service.get_money_laundering_report(...)
         }
     }
