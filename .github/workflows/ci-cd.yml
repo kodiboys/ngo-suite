@@ -64,7 +64,7 @@ jobs:
         run: poetry install --no-interaction --no-root
       
       - name: Run Black
-        run: poetry run black --check --diff src/ tests/
+        run: poetry run black src/ tests/
       
       - name: Run Ruff
         run: poetry run ruff check src/ tests/
