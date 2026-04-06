@@ -1,9 +1,10 @@
 # FILE: Dockerfile.api
 # MODULE: Multi-Stage Docker Build für FastAPI Backend
-# Optimiert für Produktion mit Slim Image, Security Scanning, Healthchecks
+# Version: 3.0.0 - Optimiert für Produktion mit Slim Image, Security Scanning, Healthchecks
+# Poetry 2.2.2, Python 3.12
 
 # ==================== STAGE 1: Builder ====================
-FROM python:3.11-slim as builder
+FROM python:3.12-slim as builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -13,57 +14,92 @@ RUN apt-get update && apt-get install -y \
     libffi-dev \
     libssl-dev \
     curl \
+    make \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry
-RUN pip install --no-cache-dir poetry==1.7.1
+# Install Poetry 2.2.2
+RUN pip install --no-cache-dir poetry==2.2.2
 
 WORKDIR /app
 
 # Copy dependency files
 COPY pyproject.toml poetry.lock* ./
 
-# Install dependencies (ohne dev dependencies)
+# Configure Poetry for optimal build
 RUN poetry config virtualenvs.create false \
-    && poetry install --no-dev --no-interaction --no-ansi
+    && poetry config installer.parallel true \
+    && poetry config installer.max-workers 4
+
+# Install dependencies (ohne dev dependencies)
+RUN poetry install --no-dev --no-interaction --no-ansi --no-root
+
+# Copy application code for potential build steps
+COPY src/ ./src/
 
 # ==================== STAGE 2: Production ====================
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     libpq-dev \
+    libffi-dev \
+    libssl-dev \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-ca-certificates
 
 # Create non-root user
-RUN groupadd -r trueangels && useradd -r -g trueangels trueangels
+RUN groupadd -r trueangels --gid=1000 \
+    && useradd -r -g trueangels --uid=1000 -m -s /bin/bash trueangels
 
+# Set working directory
 WORKDIR /app
 
 # Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --from=builder --chown=trueangels:trueangels /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder --chown=trueangels:trueangels /usr/local/bin /usr/local/bin
 
-# Copy application code
-COPY src/ ./src/
-COPY alembic/ ./alembic/
-COPY alembic.ini .
+# Copy application code with proper ownership
+COPY --chown=trueangels:trueangels src/ ./src/
+COPY --chown=trueangels:trueangels alembic/ ./alembic/
+COPY --chown=trueangels:trueangels alembic.ini .
+COPY --chown=trueangels:trueangels scripts/ ./scripts/
+COPY --chown=trueangels:trueangels pyproject.toml poetry.lock* ./
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/backups /app/uploads \
+    && chown -R trueangels:trueangels /app/logs /app/backups /app/uploads
 
 # Set environment variables
 ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    TZ=Europe/Berlin \
+    LANG=de_DE.UTF-8 \
+    LANGUAGE=de_DE:de \
+    LC_ALL=de_DE.UTF-8
+
+# Set timezone
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Security: Run as non-root user
 USER trueangels
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
 # Expose port
 EXPOSE 8000
 
-# Run with uvicorn
-CMD ["uvicorn", "src.adapters.api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Labels for container metadata
+LABEL org.opencontainers.image.title="TrueAngels API"
+LABEL org.opencontainers.image.description="FastAPI Backend für TrueAngels NGO Suite"
+LABEL org.opencontainers.image.version="3.0.0"
+LABEL org.opencontainers.image.vendor="TrueAngels e.V."
+LABEL maintainer="anto@angels4ukraine.net"
+
+# Run with uvicorn (optimiert für Produktion)
+CMD ["uvicorn", "src.adapters.api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--loop", "uvloop", "--http", "httptools", "--proxy-headers", "--forwarded-allow-ips", "*"]

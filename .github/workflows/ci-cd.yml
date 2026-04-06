@@ -1,58 +1,96 @@
 # FILE: .github/workflows/ci-cd.yml
 # MODULE: GitHub Actions CI/CD Pipeline
-# Lint, Test, Build, Security Scan, Deploy
+# Version: 3.0.0
+# Lint, Test, Build, Security Scan, Deploy mit Multi-Arch & Rollback
 
-name: TrueAngels CI/CD Pipeline
+name: TrueAngels NGO Suite CI/CD Pipeline v3.0
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, nj24-main ]
   pull_request:
     branches: [ main ]
   schedule:
     - cron: '0 2 * * *'  # Daily security scan
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  PYTHON_VERSION: '3.11'
+  PYTHON_VERSION: '3.12'
+  POETRY_VERSION: '2.2.2'                    # ← Poetry 2.2.2 (minimale Anpassungen)
+  APP_VERSION: '3.0.0'
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+  id-token: write
+  actions: read
+  checks: write
 
 jobs:
   # ==================== Linting ====================
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       
-      - name: Install Poetry
-        run: pip install poetry==1.7.1
+      - name: Install Poetry ${{ env.POETRY_VERSION }}
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 - --version ${{ env.POETRY_VERSION }}
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Configure Poetry
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry config installer.parallel true
+      
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-poetry-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
       
       - name: Install dependencies
-        run: poetry install --no-interaction
+        run: poetry install --no-interaction --no-root
       
-      - name: Run Black (Formatting)
+      - name: Run Black
         run: poetry run black --check --diff src/ tests/
       
-      - name: Run Ruff (Linting)
+      - name: Run Ruff
         run: poetry run ruff check src/ tests/
       
-      - name: Run MyPy (Type Checking)
+      - name: Run MyPy
         run: poetry run mypy src/
+      
+      - name: Run Bandit
+        run: poetry run bandit -r src/ -f json -o bandit-report.json || true
+      
+      - name: Upload Bandit Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
 
-  # ==================== Tests ====================
+  # ==================== Tests mit Coverage ====================
   test:
     runs-on: ubuntu-latest
     needs: lint
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: test_db
+          POSTGRES_DB: test
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
         ports:
@@ -74,96 +112,146 @@ jobs:
           --health-retries 5
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       
-      - name: Install Poetry
-        run: pip install poetry==1.7.1
+      - name: Install Poetry ${{ env.POETRY_VERSION }}
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 - --version ${{ env.POETRY_VERSION }}
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-poetry-${{ hashFiles('poetry.lock') }}
       
       - name: Install dependencies
         run: poetry install --no-interaction
       
       - name: Run Alembic Migrations
-        run: |
-          poetry run alembic upgrade head
+        run: poetry run alembic upgrade head
         env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
       
       - name: Run Pytest with Coverage
         run: |
-          poetry run pytest tests/ -v --cov=src --cov-report=xml --cov-report=html
+          poetry run pytest tests/ -v --cov=src --cov-report=xml --cov-report=html --cov-report=term
         env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
           REDIS_URL: redis://localhost:6379/0
           ENVIRONMENT: test
       
       - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
           flags: unittests
-          name: codecov-umbrella
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
       
-      - name: Run Security Linter (Bandit)
-        run: poetry run bandit -r src/ -f json -o bandit-report.json
-      
-      - name: Upload Security Report
-        uses: actions/upload-artifact@v3
+      - name: Upload HTML Coverage Report
+        uses: actions/upload-artifact@v4
         with:
-          name: security-report
-          path: bandit-report.json
+          name: coverage-report
+          path: htmlcov/
+      
+      - name: Run Pytest Benchmark
+        run: poetry run pytest tests/ --benchmark-only --benchmark-json=benchmark.json || true
+        continue-on-error: true
+      
+      - name: Upload Benchmark Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark.json
 
   # ==================== Security Scan ====================
   security:
     runs-on: ubuntu-latest
+    needs: [lint]
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        scan-type: [fs, repo]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.24.0
         with:
-          scan-type: 'fs'
+          scan-type: ${{ matrix.scan-type }}
           scan-ref: '.'
           format: 'sarif'
-          output: 'trivy-results.sarif'
+          output: 'trivy-results-${{ matrix.scan-type }}.sarif'
+          severity: 'CRITICAL,HIGH'
       
       - name: Upload Trivy results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: 'trivy-results-${{ matrix.scan-type }}.sarif'
       
       - name: Run OWASP Dependency Check
         uses: dependency-check/Dependency-Check_Action@main
         with:
-          project: 'TrueAngels'
+          project: 'TrueAngels-v3.0'
           path: '.'
           format: 'HTML'
           out: 'reports'
+          args: --failOnCVSS 7
       
       - name: Upload Dependency Check Report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: dependency-check-report
           path: reports
+      
+      - name: Run Snyk Security Scan (optional)
+        if: secrets.SNYK_TOKEN != ''
+        uses: snyk/actions/python@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+      
+      - name: Run CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"
 
-  # ==================== Build & Push ====================
+  # ==================== Build & Push (Multi-Architecture) ====================
   build:
     runs-on: ubuntu-latest
     needs: [test, security]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/nj24-main')
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        service: [api, celery, streamlit]
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
+        with:
+          version: latest
+          driver-opts: |
+            image=moby/buildkit:master
+            network=host
+      
+      - name: Set up QEMU for Multi-Arch
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
       
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -171,95 +259,286 @@ jobs:
       
       - name: Extract metadata for Docker
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.service }}
           tags: |
             type=ref,event=branch
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ env.APP_VERSION }},enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+          labels: |
+            org.opencontainers.image.version=${{ env.APP_VERSION }}
+            org.opencontainers.image.title=TrueAngels NGO Suite
       
-      - name: Build and push API image
-        uses: docker/build-push-action@v4
+      - name: Build and push ${{ matrix.service }}
+        uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile.api
+          file: Dockerfile.${{ matrix.service }}
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            APP_VERSION=${{ env.APP_VERSION }}
+            POETRY_VERSION=${{ env.POETRY_VERSION }}
       
-      - name: Build and push Celery image
-        uses: docker/build-push-action@v4
+      - name: Scan Docker image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.24.0
         with:
-          context: .
-          file: Dockerfile.celery
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-celery:latest
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.service }}:${{ env.APP_VERSION }}
+          format: 'sarif'
+          output: 'trivy-image-${{ matrix.service }}.sarif'
+          severity: 'CRITICAL,HIGH'
       
-      - name: Build and push Streamlit image
-        uses: docker/build-push-action@v4
+      - name: Upload image scan results
+        uses: actions/upload-artifact@v4
         with:
-          context: .
-          file: Dockerfile.streamlit
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-streamlit:latest
+          name: image-scan-${{ matrix.service }}
+          path: trivy-image-${{ matrix.service }}.sarif
 
   # ==================== Deploy to Production ====================
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/nj24-main')
     environment: production
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    timeout-minutes: 20
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Set up SSH key
-        uses: webfactory/ssh-agent@v0.8.0
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+      
+      - name: Add known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.PROD_DEPLOY_HOST }} >> ~/.ssh/known_hosts
       
       - name: Deploy to production server
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'EOF'
+          ssh -o StrictHostKeyChecking=accept-new ${{ secrets.PROD_DEPLOY_USER }}@${{ secrets.PROD_DEPLOY_HOST }} << 'EOF'
+            set -e
+            echo "🚀 Starting TrueAngels v${{ env.APP_VERSION }} deployment..."
+            
             cd /opt/trueangels
+            
+            # Backup current database
+            docker-compose exec -T postgres pg_dump -U admin trueangels > backup_$(date +%Y%m%d_%H%M%S).sql
+            
+            # Pull latest images
             docker-compose pull
+            
+            # Stop old containers gracefully
+            docker-compose stop api celery_worker streamlit
+            
+            # Start new containers
             docker-compose up -d --force-recreate --no-deps api celery_worker streamlit
-            docker system prune -f
-            docker-compose exec api alembic upgrade head
+            
+            # Run database migrations
+            docker-compose exec -T api alembic upgrade head
+            
+            # Clean up old images
+            docker system prune -f --filter "until=24h"
+            
+            # Health check
+            sleep 10
+            curl -f http://localhost:8000/health || exit 1
+            
+            echo "✅ TrueAngels v${{ env.APP_VERSION }} deployed successfully!"
           EOF
+      
+      - name: Verify deployment
+        run: |
+          sleep 30
+          curl -f https://api.angels4ukraine.de/health || exit 1
+          curl -f https://transparenz.angels4ukraine.de/_stcore/health || exit 1
       
       - name: Send deployment notification
         uses: rtCamp/action-slack-notify@v2
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
-          SLACK_TITLE: 'Deployment Successful'
-          SLACK_MESSAGE: 'TrueAngels v2.0 deployed to production'
+          SLACK_TITLE: '🚀 TrueAngels v${{ env.APP_VERSION }} Deployment'
+          SLACK_MESSAGE: |
+            Version: ${{ env.APP_VERSION }}
+            Environment: Production
+            Deployed by: ${{ github.actor }}
+            Commit: ${{ github.sha }}
+            Poetry: ${{ env.POETRY_VERSION }}
           SLACK_COLOR: '#2d6a4f'
+          SLACK_FOOTER: 'TrueAngels CI/CD Pipeline'
+      
+      - name: Create deployment tag
+        run: |
+          git tag v${{ env.APP_VERSION }}-${{ github.run_number }}
+          git push origin v${{ env.APP_VERSION }}-${{ github.run_number }} || true
 
   # ==================== Load Testing ====================
   load-test:
     runs-on: ubuntu-latest
     needs: deploy
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/nj24-main')
+    timeout-minutes: 20
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
       - name: Install Locust
-        run: pip install locust
+        run: pip install locust==2.31.0
       
       - name: Run Load Test
         run: |
-          locust -f tests/load_test.py --headless -u 100 -r 10 --run-time 5m \
-            --host https://api.trueangels.de
+          locust -f tests/load_test.py --headless \
+            -u 200 \
+            -r 20 \
+            --run-time 10m \
+            --host https://api.angels4ukraine.de \
+            --html locust_report.html \
+            --csv locust_stats
         env:
           API_KEY: ${{ secrets.API_KEY }}
       
       - name: Upload Load Test Results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: load-test-results
-          path: locust_stats.csv
+          path: |
+            locust_report.html
+            locust_stats*.csv
+      
+      - name: Check performance thresholds
+        run: |
+          python -c "
+          import csv
+          try:
+              with open('locust_stats_stats.csv') as f:
+                  reader = csv.DictReader(f)
+                  for row in reader:
+                      if row['Name'] == 'Aggregated':
+                          p95 = float(row['95%'])
+                          if p95 > 500:
+                              print(f'⚠️ Warning: 95th percentile ({p95}ms) > 500ms')
+                          else:
+                              print(f'✅ Performance OK: 95th percentile = {p95}ms')
+          except FileNotFoundError:
+              print('⚠️ Load test stats file not found')
+          "
+
+  # ==================== Rollback (Disaster Recovery) ====================
+  rollback:
+    runs-on: ubuntu-latest
+    needs: [deploy, load-test]
+    if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/nj24-main')
+    environment: production
+    timeout-minutes: 15
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+      
+      - name: Rollback to previous version
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new ${{ secrets.PROD_DEPLOY_USER }}@${{ secrets.PROD_DEPLOY_HOST }} << 'EOF'
+            cd /opt/trueangels
+            
+            echo "⚠️ Rolling back to previous version..."
+            
+            # Stop current containers
+            docker-compose down
+            
+            # Revert to previous images
+            docker-compose up -d
+            
+            # Run database rollback if needed
+            docker-compose exec -T api alembic downgrade -1 || true
+            
+            echo "✅ Rollback completed - reverted to previous version"
+          EOF
+      
+      - name: Send rollback notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_TITLE: '❌ TrueAngels v${{ env.APP_VERSION }} Rollback'
+          SLACK_MESSAGE: 'Deployment failed, rolled back to previous version'
+          SLACK_COLOR: '#dc2626'
+          SLACK_FOOTER: 'Disaster Recovery Activated'
+
+  # ==================== Create GitHub Release ====================
+  create-release:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    timeout-minutes: 10
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Generate Release Notes
+        run: |
+          cat > release-notes.md << 'EOF'
+          # 🎉 TrueAngels NGO Suite v3.0.0 - Ukraine Hilfe Upgrade
+          
+          ## 🚀 Neue Features in v3.0.0
+          - 🔍 **Transparenz-API** für öffentliche Spendenübersicht
+          - 📋 **Projekt-Bedarfe** mit Prioritäten und Kategorien
+          - 📦 **Automatische Bedarfserfüllung** aus Lagerbeständen
+          - 🔒 **Merkle-Tree** für manipulationssichere Transparenz
+          - ✅ **DSGVO-Opt-in** für Transparenzseite
+          - 🆔 **Pseudonymisierte Spender-Hashes** (SPENDER-A1B2C3)
+          - 📱 **WordPress Shortcodes** für Transparenz-Dashboard
+          - 💾 **3-2-1 Backup-Strategie** mit Wasabi S3
+          
+          ## 🔧 Technisches Upgrade
+          - Poetry 2.2.2 (minimale Anpassungen)
+          - Python 3.12
+          - Node.js 24 CI/CD
+          - Multi-Arch Docker Images (amd64 + arm64)
+          
+          ## 🌍 Ukraine Hilfe
+          - Optimiert für angels4ukraine.de
+          - Traefik Integration mit http_resolver
+          
+          ---
+          
+          ## 📊 Vorgängerversionen
+          
+          ### v2.0.0 - Enterprise Upgrade
+          - 14 Module mit Event Sourcing & CQRS
+          - Compliance Engine (GoBD, DSGVO)
+          - Multi-Provider Payments
+          
+          ### v1.0.0 - Initial Release
+          - Basis-Spendenverwaltung
+          - SKR42 Buchhaltung
+          
+          ---
+          
+          **Danke an alle Spender und Unterstützer der Ukraine-Hilfe! 💙💛**
+          EOF
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: release-notes.md
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

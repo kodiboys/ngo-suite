@@ -1,34 +1,120 @@
 # FILE: Dockerfile.streamlit
-# MODULE: Streamlit Frontend Container
+# MODULE: Streamlit Frontend Container für Transparenz-Dashboard
+# Version: 3.0.0 - Mit vollständigen System-Dependencies
 
-FROM python:3.11-slim
+FROM python:3.12-slim
 
-# Install system dependencies
+# Install system dependencies (umfangreich für Streamlit)
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates \
+    libcairo2 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf2.0-0 \
+    libffi-dev \
+    shared-mime-info \
+    libwebp-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libtiff-dev \
+    libfreetype6-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-ca-certificates
 
-# Create non-root user
-RUN groupadd -r trueangels && useradd -r -g trueangels trueangels
+# Create non-root user with fixed UID/GID
+RUN groupadd -r trueangels --gid=1000 \
+    && useradd -r -g trueangels --uid=1000 -m -s /bin/bash trueangels
 
 WORKDIR /app
 
-# Copy requirements
+# Copy requirements first (for better caching)
 COPY requirements_streamlit.txt .
-RUN pip install --no-cache-dir -r requirements_streamlit.txt
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements_streamlit.txt
 
-# Copy application
-COPY streamlit_app.py .
-COPY public/ ./public/
+# Copy application code
+COPY --chown=trueangels:trueangels streamlit_app.py .
+COPY --chown=trueangels:trueangels public/ ./public/
+COPY --chown=trueangels:trueangels src/ ./src/
 
+# Create .streamlit directory with full configuration
+RUN mkdir -p /app/.streamlit \
+    && cat > /app/.streamlit/config.toml << 'EOF'
+[theme]
+primaryColor = "#2d6a4f"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f2f6"
+textColor = "#262730"
+font = "sans serif"
+
+[server]
+port = 8501
+address = "0.0.0.0"
+headless = true
+enableCORS = false
+enableXsrfProtection = true
+maxUploadSize = 200
+
+[browser]
+gatherUsageStats = false
+serverAddress = "transparenz.angels4ukraine.de"
+serverPort = 8501
+
+[logger]
+level = "info"
+
+[runner]
+magicEnabled = false
+EOF
+    && chown -R trueangels:trueangels /app/.streamlit
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/.streamlit/cache \
+    && chown -R trueangels:trueangels /app/logs /app/.streamlit/cache
+
+# Set environment variables
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    TZ=Europe/Berlin \
+    LANG=de_DE.UTF-8 \
+    STREAMLIT_SERVER_PORT=8501 \
+    STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
+    STREAMLIT_SERVER_HEADLESS=true \
+    STREAMLIT_SERVER_ENABLE_CORS=false \
+    STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=true \
+    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
+    STREAMLIT_SERVER_MAX_UPLOAD_SIZE=200
+
+# Set timezone
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Switch to non-root user
 USER trueangels
 
-# Healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8501/_stcore/health || exit 1
-
+# Expose port
 EXPOSE 8501
 
-CMD ["streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+
+# Labels
+LABEL org.opencontainers.image.title="TrueAngels Streamlit Dashboard"
+LABEL org.opencontainers.image.description="Transparenz-Dashboard für TrueAngels NGO Suite"
+LABEL org.opencontainers.image.version="3.0.0"
+LABEL org.opencontainers.image.vendor="TrueAngels e.V."
+LABEL maintainer="anto@angels4ukraine.net"
+
+# Run streamlit
+CMD ["streamlit", "run", "streamlit_app.py", \
+     "--server.port=8501", \
+     "--server.address=0.0.0.0", \
+     "--server.headless=true", \
+     "--server.enableCORS=false", \
+     "--server.enableXsrfProtection=true", \
+     "--browser.gatherUsageStats=false"]

@@ -1,0 +1,66 @@
+# FILE: Dockerfile.celery-beat
+# MODULE: Celery Beat Container für Scheduled Tasks
+# Version: 3.0.0 - Für Merkle-Tree und tägliche Jobs
+
+FROM python:3.12-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-ca-certificates
+
+# Create non-root user with fixed UID/GID
+RUN groupadd -r trueangels --gid=1000 \
+    && useradd -r -g trueangels --uid=1000 -m -s /bin/bash trueangels
+
+WORKDIR /app
+
+# Copy dependency files
+COPY pyproject.toml poetry.lock* ./
+
+# Install Poetry 2.2.2
+RUN pip install --no-cache-dir poetry==2.2.2
+
+# Configure Poetry
+RUN poetry config virtualenvs.create false \
+    && poetry config installer.parallel true
+
+# Install dependencies
+RUN poetry install --no-interaction --no-ansi --no-root
+
+# Copy application code
+COPY --chown=trueangels:trueangels src/ ./src/
+COPY --chown=trueangels:trueangels scripts/ ./scripts/
+
+# Create schedule directory
+RUN mkdir -p /app/celerybeat-data \
+    && chown -R trueangels:trueangels /app/celerybeat-data
+
+# Set environment variables
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    TZ=Europe/Berlin \
+    CELERY_BROKER_URL=redis://redis:6379/0 \
+    CELERY_RESULT_BACKEND=redis://redis:6379/1
+
+# Set timezone
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Switch to non-root user
+USER trueangels
+
+# Labels
+LABEL org.opencontainers.image.title="TrueAngels Celery Beat"
+LABEL org.opencontainers.image.description="Celery Beat für Scheduled Tasks (Merkle-Tree, Backups)"
+LABEL org.opencontainers.image.version="3.0.0"
+LABEL org.opencontainers.image.vendor="TrueAngels e.V."
+LABEL maintainer="anto@angels4ukraine.net"
+
+# Run celery beat with schedule file
+CMD ["celery", "-A", "src.core.events.event_bus", "beat", \
+     "--loglevel=info", \
+     "--schedule=/app/celerybeat-data/celerybeat-schedule", \
+     "--pidfile=/app/celerybeat-data/celerybeat.pid"]
