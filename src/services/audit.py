@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from functools import wraps
 from typing import Any
 from uuid import UUID
-from typing import Dict
 
 from fastapi import HTTPException, Request
 from sqlalchemy import select
@@ -317,7 +316,7 @@ class AuditService:
                 for log in logs
             ]
 
-    async def get_compliance_report(self, year: int) -> Dict[str, Any]:
+    async def get_compliance_report(self, year: int) -> dict[str, Any]:
         """
         Generiert Compliance Report für Wirtschaftsprüfer
         GoBD-konform mit Merkle-Tree Prüfpfaden

@@ -6,12 +6,13 @@ Chaos Engineering Tests
 import hashlib
 from decimal import Decimal
 from uuid import uuid4
-from sqlalchemy import select
+
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, invariant, rule
 from NGO.src.core.entities.base import ComplianceStatus, Donation, DonationCreate
+from sqlalchemy import select
 
 # ==================== PROPERTY-BASED TESTS ====================
 

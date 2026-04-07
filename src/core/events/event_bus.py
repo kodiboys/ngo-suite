@@ -8,14 +8,13 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
-from sqlalchemy import func
-from decimal import Decimal
 
 from celery import Celery
 from redis import Redis
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from src.core.entities.base import EventStore
 

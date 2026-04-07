@@ -7,8 +7,8 @@ import hashlib
 from collections.abc import AsyncGenerator, Generator
 from datetime import datetime
 from decimal import Decimal
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
-from unittest.mock import patch, AsyncMock
 
 import fakeredis.aioredis
 import pytest

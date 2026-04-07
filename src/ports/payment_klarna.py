@@ -8,7 +8,6 @@ import logging
 from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
-from src.ports.payment_base import PaymentProviderError
 
 import httpx
 
@@ -17,6 +16,7 @@ from src.ports.payment_base import (
     PaymentIntent,
     PaymentMethod,
     PaymentProvider,
+    PaymentProviderError,
     PaymentProviderInterface,
     PaymentStatus,
     RefundRequest,

@@ -1,26 +1,107 @@
 # FILE: .streamlit/config.toml
-# MODULE: Streamlit Configuration für Theme und Server
+# MODULE: Streamlit Configuration for TrueAngels NGO Suite
+# Theme, Server Settings, and Performance Tuning
+# Alle Farben in RGB-Format
 
 [theme]
+# Primary color for buttons, links, and interactive elements
 primaryColor = "rgb(45, 106, 79)"
+
+# Background color of the main content area
 backgroundColor = "rgb(255, 255, 255)"
+
+# Background color for sidebars and secondary elements
 secondaryBackgroundColor = "rgb(240, 242, 246)"
+
+# Main text color
 textColor = "rgb(38, 39, 48)"
+
+# Font family (sans serif is standard for web)
 font = "sans serif"
 
 [server]
+# Port for Streamlit to listen on
 port = 8501
+
+# Address to bind to (0.0.0.0 for all interfaces)
 address = "0.0.0.0"
-enableCORS = false
-enableXsrfProtection = true
+
+# Whether to run in headless mode (no browser)
+headless = true
+
+# Maximum size for file uploads (MB)
 maxUploadSize = 200
 
-[browser]
-gatherUsageStats = false
-serverAddress = "localhost"
+# Whether to enable CORS protection
+enableCORS = false
 
-[runner]
-magicEnabled = false
+# Whether to enable XSRF protection
+enableXsrfProtection = true
+
+# Whether to run in production mode
+runOnSave = false
+
+# WebSocket compression
+websocketCompression = true
+
+[browser]
+# Gather usage stats (disable for privacy)
+gatherUsageStats = false
+
+# Server address for the browser to connect to
+serverAddress = "transparenz.angels4ukraine.de"
+
+# Server port for the browser
+serverPort = 8501
 
 [logger]
+# Log level (debug, info, warning, error, critical)
 level = "info"
+
+# Log format (text or json)
+format = "text"
+
+[runner]
+# Whether to enable magic commands (%%)
+magicEnabled = false
+
+# Whether to install tracer for debugging
+installTracer = false
+
+[global]
+# Whether to show development mode warning
+developmentMode = false
+
+# Whether to run in data science notebook mode
+dataFrameSerialization = "legacy"
+
+# Maximum size for cached functions (MB)
+maxCachedMessageSize = 50
+
+# Map widget rendering style
+mapboxToken = ""
+
+# ==================== Performance Settings ====================
+[cache]
+# Maximum number of entries in the cache
+maxEntries = 1000
+
+# Time to live for cached items (seconds)
+ttl = 3600
+
+# ==================== Security Settings ====================
+[cors]
+# Allowed origins (comma-separated)
+allowedOrigins = [
+    "https://angels4ukraine.de",
+    "https://www.angels4ukraine.de",
+    "https://transparenz.angels4ukraine.de",
+    "http://localhost:3000",
+    "http://localhost:8501",
+]
+
+# Whether to allow credentials
+allowCredentials = true
+
+# ==================== Custom CSS (via streamlit_app.py) ====================
+# Additional CSS can be added in the main application file (streamlit_app.py) to further customize the appearance of the app, such as:

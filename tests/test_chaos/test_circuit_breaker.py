@@ -34,7 +34,7 @@ class TestCircuitBreakerChaos:
         breaker = CircuitBreaker(circuit_breaker_config, redis_client)
 
         # Simuliere 3 Fehler
-        for i in range(3):
+        for _i in range(3):
             await breaker.record_failure()
 
         status = await breaker.get_status()
@@ -46,7 +46,7 @@ class TestCircuitBreakerChaos:
         breaker = CircuitBreaker(circuit_breaker_config, redis_client)
 
         # Öffne Circuit
-        for i in range(3):
+        for _i in range(3):
             await breaker.record_failure()
 
         status = await breaker.get_status()
@@ -56,7 +56,7 @@ class TestCircuitBreakerChaos:
         await breaker._set_state(CircuitBreakerState.HALF_OPEN)
 
         # Erfolge in Half-Open
-        for i in range(2):
+        for _i in range(2):
             await breaker.record_success()
 
         status = await breaker.get_status()
@@ -70,7 +70,7 @@ class TestCircuitBreakerChaos:
         breaker = CircuitBreaker(circuit_breaker_config, redis_client)
 
         # Öffne Circuit
-        for i in range(3):
+        for _i in range(3):
             await breaker.record_failure()
 
         # Manuell auf Half-Open
@@ -98,7 +98,7 @@ class TestCircuitBreakerChaos:
             return "fallback_response"
 
         # Erste 3 Aufrufe schlagen fehl
-        for i in range(3):
+        for _i in range(3):
             with pytest.raises(ValueError):
                 await breaker.call(failing_function)
 

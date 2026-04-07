@@ -1,0 +1,159 @@
+# FILE: .gitignore
+# Module: Git Ignore für TrueAngels NGO Suite v3.0.0
+
+# ==================== Python ====================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+.venv/
+venv/
+ENV/
+env/
+.venv
+venv/
+env/
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+
+# ==================== Streamlit Secrets (WICHTIG!) ====================
+.streamlit/secrets.toml
+.streamlit/secrets/
+.streamlit/*.toml
+!.streamlit/config.toml
+
+# ==================== IDE / Editor ====================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.vscode/settings.json
+.idea/workspace.xml
+
+# ==================== Testing ====================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+.benchmarks/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ==================== Logs & Daten ====================
+logs/
+*.log
+backups/
+*.sql
+*.sql.gz
+*.rdb
+uploads/
+static/
+*.db
+*.sqlite
+*.sqlite3
+
+# ==================== Docker ====================
+*.pid
+docker-compose.override.yml
+.ecs/
+*.service
+
+# ==================== Secrets & Keys ====================
+*.pem
+*.key
+*.crt
+*.p12
+.secrets/
+secrets/
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+credentials.json
+service-account.json
+*.p8
+*.p10
+
+# ==================== API Keys & Tokens ====================
+.secret
+.secrets
+*_secret
+*_key
+*_token
+*_password
+*_private
+
+# ==================== OS ====================
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.DS_Store
+*.AppleDouble
+*.LSOverride
+
+# ==================== Backup Files ====================
+*.bak
+*.backup
+*.tmp
+*.temp
+*.cache
+
+# ==================== Project Specific ====================
+# Alembic migrations (generierte Dateien, aber nicht die Versions)
+alembic/versions/*.py
+!alembic/versions/__init__.py
+!alembic/versions/001_initial_schema.py
+
+# Grafana (lokale Konfiguration)
+grafana/data/
+grafana/logs/
+
+# Prometheus (lokale Daten)
+prometheus/data/
+
+# Let's Encrypt (SSL Zertifikate)
+letsencrypt/
+
+# MinIO Daten
+minio_data/
+
+# Celery Beat Schedule
+celerybeat-schedule
+celerybeat.pid
+
+# ==================== Package Manager ====================
+# Poetry
+poetry.lock
+# (Auskommentieren wenn lockfile committed werden soll)
+# poetry.lock
+
+# NPM / Node.js (WordPress Plugin)
+wp-plugin/node_modules/
+wp-plugin/package-lock.json
+wp-plugin/composer.lock
+
+# ==================== Temporary Files ====================
+*.tmp
+*.temp
+*.cache
+*.swp
+*.swo
+*~
+
+# ==================== Local Configuration ====================
+*.local
+*.local.py
+config.local.py
+settings.local.py

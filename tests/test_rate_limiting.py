@@ -4,10 +4,10 @@
 
 import asyncio
 from unittest.mock import patch
-from hypothesis import given
-from hypothesis import strategies as st
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from src.core.rate_limiting.base import (
     RateLimitConfig,
@@ -68,7 +68,7 @@ async def test_token_bucket_rate_limiter(redis_client):
     key = "test:token:127.0.0.1"
 
     # Erste 10 Anfragen sofort erlaubt (Burst)
-    for i in range(10):
+    for _i in range(10):
         result = await limiter.is_allowed(key, config)
         assert result.allowed is True
 
@@ -94,7 +94,7 @@ async def test_circuit_breaker(redis_client):
     breaker = CircuitBreaker(config, redis_client)
 
     # Simuliere Fehler
-    for i in range(3):
+    for _i in range(3):
         await breaker.record_failure()
 
     status = await breaker.get_status()
@@ -155,7 +155,7 @@ async def test_circuit_breaker_with_function(redis_client):
         return "fallback_response"
 
     # Erste zwei Aufrufe schlagen fehl
-    for i in range(2):
+    for _i in range(2):
         with pytest.raises(ValueError):
             await breaker.call(failing_func)
 

@@ -6,9 +6,9 @@ from datetime import datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
-from reportlab.lib.pagesizes import A4
 
 import pytest
+from reportlab.lib.pagesizes import A4
 
 from src.services.accounting import AccountingService, ExportService
 from src.services.pdf_generator import (

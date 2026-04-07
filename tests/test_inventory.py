@@ -6,10 +6,10 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
-from hypothesis import given
-from hypothesis import strategies as st
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from src.core.entities.inventory import (
     InventoryItem,

@@ -3,11 +3,13 @@
 # Schutz für Stripe, PayPal, Klarna, Social Media APIs
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Any
 
 from src.core.rate_limiting.circuit_breaker import (
-    CircuitBreaker, CircuitBreakerConfig, CircuitBreakerRegistry,
-    CircuitBreakerOpenException
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitBreakerOpenException,
+    CircuitBreakerRegistry,
 )
 
 logger = logging.getLogger(__name__)
@@ -26,11 +28,11 @@ class CircuitBreakerService:
     - Wasabi S3
     - VIES (Steuerprüfung)
     """
-    
+
     def __init__(self, redis_client):
         self.redis = redis_client
         self.registry = CircuitBreakerRegistry(redis_client)
-        
+
         # Circuit Breaker Konfigurationen
         self.configs = {
             "stripe": CircuitBreakerConfig(
@@ -100,7 +102,7 @@ class CircuitBreakerService:
                 rolling_window_seconds=120
             )
         }
-    
+
     def get_breaker(self, service_name: str) -> CircuitBreaker:
         """Holt Circuit Breaker für Service"""
         config = self.configs.get(service_name)
@@ -114,22 +116,22 @@ class CircuitBreakerService:
                 half_open_max_calls=3,
                 rolling_window_seconds=120
             )
-        
+
         return self.registry.get_or_create(config)
-    
+
     async def call_with_circuit_breaker(
         self,
         service_name: str,
         func,
         *args,
-        fallback: Optional[callable] = None,
+        fallback: callable | None = None,
         **kwargs
     ) -> Any:
         """
         Führt eine Funktion mit Circuit Breaker Schutz aus
         """
         breaker = self.get_breaker(service_name)
-        
+
         try:
             return await breaker.call(func, *args, fallback=fallback, **kwargs)
         except CircuitBreakerOpenException as e:
@@ -137,11 +139,11 @@ class CircuitBreakerService:
             if fallback:
                 return await fallback(*args, **kwargs)
             raise
-    
-    async def get_all_statuses(self) -> Dict[str, Dict[str, Any]]:
+
+    async def get_all_statuses(self) -> dict[str, dict[str, Any]]:
         """Holt Status aller Circuit Breaker"""
         statuses = await self.registry.get_all_statuses()
-        
+
         result = {}
         for key, status in statuses.items():
             result[key] = {
@@ -154,21 +156,21 @@ class CircuitBreakerService:
                 "total_failures": status.total_failures,
                 "total_successes": status.total_successes
             }
-        
+
         return result
-    
+
     async def force_open(self, service_name: str):
         """Erzwingt Open State für einen Service"""
         breaker = self.get_breaker(service_name)
         await breaker.force_open()
         logger.warning(f"Circuit breaker {service_name} manually forced to OPEN")
-    
+
     async def force_close(self, service_name: str):
         """Erzwingt Closed State für einen Service"""
         breaker = self.get_breaker(service_name)
         await breaker.force_close()
         logger.info(f"Circuit breaker {service_name} manually forced to CLOSED")
-    
+
     async def reset_all(self):
         """Resetet alle Circuit Breaker"""
         await self.registry.reset_all()
@@ -177,10 +179,10 @@ class CircuitBreakerService:
 
 # ==================== Decorator für Circuit Breaker ====================
 
-def with_circuit_breaker(service_name: str, fallback_func: Optional[callable] = None):
+def with_circuit_breaker(service_name: str, fallback_func: callable | None = None):
     """
     Decorator für Circuit Breaker Schutz
-    
+
     Usage:
         @with_circuit_breaker("stripe", fallback_func=my_fallback)
         async def stripe_payment():

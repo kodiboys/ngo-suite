@@ -6,9 +6,10 @@ from datetime import datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
+
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-import pytest
 
 from src.core.compliance.base import (
     ApprovalStatus,

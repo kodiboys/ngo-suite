@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+    <rect width="192" height="192" rx="36" fill="#2d6a4f"/>
+    <circle cx="96" cy="96" r="76" fill="none" stroke="white" stroke-width="8"/>
+    <path d="M96 36 L96 156 M48 72 L144 120 M48 120 L144 72" stroke="white" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="96" cy="96" r="18" fill="white"/>
+    <text x="96" y="180" text-anchor="middle" fill="white" font-size="14" font-family="Arial" opacity="0.6">TrueAngels</text>
+</svg>

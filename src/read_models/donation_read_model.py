@@ -3,16 +3,14 @@
 # Denormalisierte Tabelle für schnelle Leseoperationen
 
 # 1. Standard-Library Imports
+import logging
 from datetime import datetime, timedelta
+from decimal import Decimal  # WICHTIG: Hier hinzufügen, sonst stürzt der EventHandler ab!
 from typing import Any
 from uuid import UUID
-import logging
-from decimal import Decimal  # WICHTIG: Hier hinzufügen, sonst stürzt der EventHandler ab!
 
 # 2. Third-Party Imports (SQLAlchemy)
-from sqlalchemy import (
-    Column, String, DateTime, Numeric, Boolean, Index, Integer, func, select
-)
+from sqlalchemy import Boolean, Column, DateTime, Index, Integer, Numeric, String, func, select
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
 # 3. Local Application Imports

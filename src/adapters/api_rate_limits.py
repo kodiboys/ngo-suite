@@ -3,18 +3,17 @@
 # REST Endpoints für PDF-Generierung, Exporte, Dashboards
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Response
 
 from src.adapters.auth import get_current_active_user, require_role
 from src.adapters.dependencies import (
-    get_receipt_generator,
-    get_balance_generator,
-    get_project_report_generator,
     get_accounting_service,
+    get_balance_generator,
     get_export_service,
+    get_project_report_generator,
+    get_receipt_generator,
 )
 from src.core.entities.base import User, UserRole
 
@@ -32,10 +31,10 @@ async def get_donation_receipt(
 ):
     """Generiert Zuwendungsbescheinigung als PDF (Spender oder Admin)"""
     pdf_bytes = await receipt_generator.generate_donation_receipt(
-        donation_id, 
+        donation_id,
         include_personal_data
     )
-    
+
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -49,8 +48,8 @@ async def get_donation_receipt(
 
 @router.get("/balance-sheet")
 async def get_balance_sheet(
-    project_id: Optional[UUID] = None,
-    year: Optional[int] = None,
+    project_id: UUID | None = None,
+    year: int | None = None,
     include_comparison: bool = True,
     balance_generator=Depends(get_balance_generator),
     current_user: User = Depends(require_role(UserRole.ACCOUNTANT)),
@@ -58,18 +57,18 @@ async def get_balance_sheet(
     """Generiert SKR42-Bilanz als PDF"""
     if year is None:
         year = datetime.utcnow().year
-    
+
     pdf_bytes = await balance_generator.generate_balance_sheet(
         project_id=project_id,
         year=year,
         include_comparison=include_comparison
     )
-    
+
     filename = f"skr42_bilanz_{year}"
     if project_id:
         filename += f"_projekt_{project_id}"
     filename += ".pdf"
-    
+
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -88,10 +87,10 @@ async def get_project_report(
 ):
     """Generiert detaillierten Projektbericht als PDF"""
     pdf_bytes = await report_generator.generate_project_report(
-        project_id, 
+        project_id,
         include_donors
     )
-    
+
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -105,16 +104,16 @@ async def get_project_report(
 async def export_datev_csv(
     start_date: str,
     end_date: str,
-    project_id: Optional[UUID] = None,
+    project_id: UUID | None = None,
     accounting_service=Depends(get_accounting_service),
     current_user: User = Depends(require_role(UserRole.ACCOUNTANT)),
 ):
     """Exportiert Buchungen im DATEV-CSV-Format"""
     start = datetime.fromisoformat(start_date)
     end = datetime.fromisoformat(end_date)
-    
+
     csv_bytes = await accounting_service.export_datev_csv(start, end, project_id)
-    
+
     return Response(
         content=csv_bytes,
         media_type="text/csv",
@@ -132,9 +131,9 @@ async def export_datev_fuxt(
     """Exportiert Buchungen im DATEV-FUXT-Format"""
     start = datetime.fromisoformat(start_date)
     end = datetime.fromisoformat(end_date)
-    
+
     fuxt_bytes = await accounting_service.export_datev_fuxt(start, end)
-    
+
     return Response(
         content=fuxt_bytes,
         media_type="application/xml",
@@ -155,12 +154,12 @@ async def export_donations(
     """Exportiert Spendenbericht als Excel oder CSV"""
     start = datetime.fromisoformat(start_date)
     end = datetime.fromisoformat(end_date)
-    
+
     data_bytes = await export_service.export_donations_report(start, end, format)
-    
+
     content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if format == "excel" else "text/csv"
     extension = "xlsx" if format == "excel" else "csv"
-    
+
     return Response(
         content=data_bytes,
         media_type=content_type,

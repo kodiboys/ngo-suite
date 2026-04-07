@@ -5,17 +5,6 @@
     // ==================== Ruff (Linting & Formatting) ====================
     "ruff.enable": true,
     "ruff.lint.enable": true,
-    "ruff.lint.args": [
-        "--select",
-        "E,W,F,I,N,UP,B,C4,SIM,TID",
-        "--ignore",
-        "E501,B008,SIM108"
-    ],
-    "ruff.format.args": [
-        "--line-length",
-        "100"
-    ],
-    "ruff.organizeImports": true,
     // ==================== Black (Fallback Formatierung) ====================
     "black-formatter.args": [
         "--line-length",
@@ -102,5 +91,16 @@
     // ==================== Problems Panel ====================
     "problems.defaultViewMode": "tree",
     "problems.showCurrentInStatus": true,
-    "problems.sortOrder": "severity"
+    "problems.sortOrder": "severity",
+    // ==================== YAML Schema Association ====================
+    "yaml.schemas": {
+        "https://json.schemastore.org/dependabot-2.0.json": [
+            ".github/dependabot.yml"
+        ],
+        "https://json.schemastore.org/github-workflow.json": [
+            ".github/workflows/*.yml"
+        ]
+    },
+    "yaml.validate": true,
+    "yaml.format.enable": true
 }

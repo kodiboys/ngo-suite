@@ -1,0 +1,209 @@
+# FILE: .github/dependabot.yml
+# MODULE: Dependabot Configuration for Automatic Dependency Updates
+# Version: 2 (as required by schema)
+# Automatically updates dependencies to keep the project secure and up-to-date
+
+version: 2
+updates:
+  # ==================== Python Dependencies (Poetry) ====================
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "Europe/Berlin"
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps(dev)"
+      include: "scope"
+    open-pull-requests-limit: 10
+    versioning-strategy: "auto"
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    ignore:
+      - dependency-name: "python"
+        versions: [">=3.13"]
+      - dependency-name: "black"
+        versions: [">=25.0.0"]
+      - dependency-name: "ruff"
+        versions: [">=0.7.0"]
+
+    # ==================== GRUPPEN - Weniger PRs, bessere Übersicht ====================
+    groups:
+      testing-stack:
+        patterns:
+          - "pytest*"
+          - "hypothesis"
+          - "locust"
+          - "fakeredis"
+          - "pytest-mock"
+          - "pytest-asyncio"
+          - "pytest-cov"
+          - "pytest-benchmark"
+      linters:
+        patterns:
+          - "ruff"
+          - "black"
+          - "mypy"
+          - "isort"
+          - "pre-commit"
+          - "bandit"
+          - "safety"
+      web-framework:
+        patterns:
+          - "fastapi"
+          - "uvicorn"
+          - "pydantic*"
+          - "python-multipart"
+          - "python-jose"
+          - "passlib"
+          - "python-dotenv"
+      database-stack:
+        patterns:
+          - "sqlalchemy"
+          - "alembic"
+          - "asyncpg"
+          - "psycopg2-binary"
+      cache-queue:
+        patterns:
+          - "redis"
+          - "celery"
+          - "apscheduler"
+      payments:
+        patterns:
+          - "stripe"
+          - "paypalrestsdk"
+          - "httpx"
+      social-media:
+        patterns:
+          - "tweepy"
+          - "facebook-sdk"
+          - "python-telegram-bot"
+      monitoring:
+        patterns:
+          - "prometheus-client"
+          - "opentelemetry*"
+          - "sentry-sdk"
+      reporting:
+        patterns:
+          - "reportlab"
+          - "weasyprint"
+          - "plotly"
+          - "pandas"
+          - "openpyxl"
+      frontend:
+        patterns:
+          - "streamlit"
+          - "streamlit-option-menu"
+          - "streamlit-extras"
+      cloud-storage:
+        patterns:
+          - "boto3"
+          - "hvac"
+      security-tools:
+        patterns:
+          - "pyotp"
+          - "qrcode"
+          - "cryptography"
+          - "bcrypt"
+      utils:
+        patterns:
+          - "python-dateutil"
+          - "email-validator"
+          - "ujson"
+          - "orjson"
+
+  # ==================== GitHub Actions ====================
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "Europe/Berlin"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "ci"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    open-pull-requests-limit: 5
+    groups:
+      actions-updates:
+        patterns:
+          - "*"
+
+  # ==================== Docker ====================
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "Europe/Berlin"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "container"
+    commit-message:
+      prefix: "docker"
+      include: "scope"
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "python"
+        versions: [">=3.13"]
+    groups:
+      docker-updates:
+        patterns:
+          - "*"
+
+  # ==================== NPM / Node.js (WordPress Plugin) ====================
+  - package-ecosystem: "npm"
+    directory: "/wp-plugin"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "Europe/Berlin"
+    labels:
+      - "dependencies"
+      - "npm"
+      - "wordpress"
+    commit-message:
+      prefix: "npm"
+      include: "scope"
+    open-pull-requests-limit: 5
+    versioning-strategy: "auto"
+    groups:
+      npm-updates:
+        patterns:
+          - "*"
+
+  # ==================== Composer (PHP / WordPress) ====================
+  - package-ecosystem: "composer"
+    directory: "/wp-plugin"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "Europe/Berlin"
+    labels:
+      - "dependencies"
+      - "composer"
+      - "php"
+      - "wordpress"
+    commit-message:
+      prefix: "composer"
+      include: "scope"
+    open-pull-requests-limit: 5
+    versioning-strategy: "auto"
+    groups:
+      composer-updates:
+        patterns:
+          - "*"

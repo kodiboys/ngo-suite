@@ -5,9 +5,10 @@
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
+
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-import pytest
 
 from src.core.events.event_store import (
     ConcurrencyException,

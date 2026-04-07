@@ -4,10 +4,10 @@
 
 from unittest.mock import Mock, patch
 from uuid import uuid4
-from hypothesis import given
-from hypothesis import strategies as st
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from src.ports.social_base import (
     CreatePostRequest,

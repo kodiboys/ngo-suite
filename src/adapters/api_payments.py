@@ -3,10 +3,9 @@
 # REST Endpoints für Zahlungen, Webhooks, Refunds
 
 from decimal import Decimal
-from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 
 from src.adapters.auth import get_current_active_user, require_role
 from src.adapters.dependencies import get_payment_service
@@ -65,7 +64,7 @@ async def stripe_webhook(
     """
     payload = await request.body()
     signature = request.headers.get("stripe-signature")
-    
+
     # Async verarbeiten (nicht blockieren)
     background_tasks.add_task(
         payment_service.handle_webhook,
@@ -73,7 +72,7 @@ async def stripe_webhook(
         payload,
         signature
     )
-    
+
     return {"received": True}
 
 
@@ -88,14 +87,14 @@ async def paypal_webhook(
     """
     payload = await request.body()
     signature = request.headers.get("paypal-transmission-sig")
-    
+
     background_tasks.add_task(
         payment_service.handle_webhook,
         PaymentProvider.PAYPAL,
         payload,
         signature
     )
-    
+
     return {"received": True}
 
 
@@ -110,14 +109,14 @@ async def klarna_webhook(
     """
     payload = await request.body()
     signature = request.headers.get("klarna-signature")
-    
+
     background_tasks.add_task(
         payment_service.handle_webhook,
         PaymentProvider.KLARNA,
         payload,
         signature
     )
-    
+
     return {"received": True}
 
 
@@ -126,8 +125,8 @@ async def klarna_webhook(
 @router.post("/refund/{donation_id}")
 async def refund_donation(
     donation_id: UUID,
-    amount: Optional[Decimal] = None,
-    reason: Optional[str] = None,
+    amount: Decimal | None = None,
+    reason: str | None = None,
     payment_service: PaymentService = Depends(get_payment_service),
     current_user: User = Depends(require_role(UserRole.ADMIN)),
 ):

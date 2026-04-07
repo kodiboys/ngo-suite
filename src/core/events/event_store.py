@@ -20,12 +20,12 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     delete,
     func,
     select,
     update,
 )
-from sqlalchemy import UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
