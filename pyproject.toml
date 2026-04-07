@@ -42,7 +42,7 @@ alembic = "^1.13.0"
 psycopg2-binary = "^2.9.9"
 
 # ==================== Cache & Queue ====================
-redis = "^5.0.0"
+redis = "^7.4.0"
 celery = "^5.4.0"
 apscheduler = "^3.10.0"
 
