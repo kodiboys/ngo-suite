@@ -2,9 +2,9 @@
 # MODULE: Monitoring Package
 
 from src.monitoring.metrics import (
+    MetricsRecorder,
     PrometheusMiddleware,
     metrics_endpoint,
-    MetricsRecorder,
 )
 
 __all__ = [

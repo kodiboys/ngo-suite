@@ -1,9 +1,15 @@
 # FILE: src/core/entities/__init__.py
 # MODULE: Entities Package
 
-from src.core.entities.base import Base, Donation, Project, User, SKR42Account, AuditLog
-from src.core.entities.inventory import InventoryItem, StockMovement, PackingList, PackingListItem, Warehouse
-from src.core.entities.needs import ProjectNeed, NeedHistory, NeedAlertLog
+from src.core.entities.base import AuditLog, Base, Donation, Project, SKR42Account, User
+from src.core.entities.inventory import (
+    InventoryItem,
+    PackingList,
+    PackingListItem,
+    StockMovement,
+    Warehouse,
+)
+from src.core.entities.needs import NeedAlertLog, NeedHistory, ProjectNeed
 
 __all__ = [
     "Base",

@@ -1,4 +1,3 @@
-```python
 # FILE: migrations/versions/001_initial_schema.py
 # MODULE: Initial Database Schema Migration
 # Erstellt alle Core-Tabellen für die TrueAngels NGO Suite v3.0.0
@@ -444,25 +443,25 @@ def downgrade() -> None:
     # Drop extensions (optional, comment if needed)
     # op.execute('DROP EXTENSION IF EXISTS "pg_stat_statements"')
     # op.execute('DROP EXTENSION IF EXISTS "uuid-ossp"')
-```
-
----
-
+#```
+#
+#---
+#
 ## 📋 **MIGRATION ÜBERSICHT**
-
-| Tabelle                           | Zweck |
-|-----------------------------------|---------------------------------------------------|
-| `skr42_accounts`                  | SKR42 Kontenrahmen mit Kostenträgern              |
-| `users`                           | Benutzer mit RBAC, MFA, Benachrichtigungen        |
-| `projects`                        | Projekte mit Budget, Fortschritt, Transparenz     |
-| `donations`                       | Spenden mit Compliance, Pseudonymisierung, SKR42  |
-| `audit_logs`                      | DSGVO/GoBD konformes Audit-Log                    |
-| `event_store`                     | Event Sourcing (Greg Young Pattern)               |
-| `four_eyes_approvals`             | 4-Augen-Prinzip Workflow                          |
-| `money_laundering_checks`         | Geldwäscheprüfungen                               |
-| `gobd_compliance_records`         | GoBD-revisionssichere Aufbewahrung                |
-| `compliance_alerts`               | Compliance-Benachrichtigungen                     |
-
----
-
-**Die initiale Migration ist vollständig und bereit für die Ausführung!** 🚀
+#
+#| Tabelle                           | Zweck |
+#|-----------------------------------|---------------------------------------------------|
+#| `skr42_accounts`                  | SKR42 Kontenrahmen mit Kostenträgern              |
+#| `users`                           | Benutzer mit RBAC, MFA, Benachrichtigungen        |
+#| `projects`                        | Projekte mit Budget, Fortschritt, Transparenz     |
+#| `donations`                       | Spenden mit Compliance, Pseudonymisierung, SKR42  |
+#| `audit_logs`                      | DSGVO/GoBD konformes Audit-Log                    |
+#| `event_store`                     | Event Sourcing (Greg Young Pattern)               |
+#| `four_eyes_approvals`             | 4-Augen-Prinzip Workflow                          |
+#| `money_laundering_checks`         | Geldwäscheprüfungen                               |
+#| `gobd_compliance_records`         | GoBD-revisionssichere Aufbewahrung                |
+#| `compliance_alerts`               | Compliance-Benachrichtigungen                     |
+#
+#---
+#
+#**Die initiale Migration ist vollständig und bereit für die Ausführung!**

@@ -34,27 +34,19 @@
         "reportUnusedVariable": "warning",
         "reportGeneralTypeIssues": "information"
     },
-    // ==================== Editor Settings ====================
-    "editor.formatOnSave": true,
-    "editor.codeActionsOnSave": {
-        "source.fixAll.ruff": "explicit",
-        "source.organizeImports.ruff": "explicit"
-    },
-    "editor.rulers": [
-        100
-    ],
     // ==================== Python Spezifisch ====================
     "[python]": {
         "editor.formatOnSave": true,
         "editor.defaultFormatter": "charliermarsh.ruff",
         "editor.codeActionsOnSave": {
-            "source.fixAll.ruff": "explicit",
-            "source.organizeImports.ruff": "explicit"
+            "source.fixAll.ruff": true, // ✅ Voll-auto
+            "source.organizeImports.ruff": true // ✅ Imports sortieren
         },
         "editor.rulers": [
             100
-        ]
-    },
+        ],
+        "editor.tabSize": 4
+    }
     // ==================== TOML & YAML ====================
     "[toml]": {
         "editor.formatOnSave": true,

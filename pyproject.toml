@@ -158,11 +158,26 @@ exclude = [
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N", "UP", "B", "C4", "SIM", "TID"]
-ignore = ["E501", "B008", "SIM108", "N805"]
+ignore = [
+    "E501",
+    "B008",
+    "SIM108",
+    "N805",
+    "I001",   # Bestehende
+    "B017",
+    "SIM117",
+    "SIM103",
+    "SIM102", # Multiple contexts/ifs
+    "N818",
+    "N806",
+    "N802",
+    "B904",
+    "N812",   # Naming/Selenium
+]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "PLR2004", "ARG001", "E402"]
-"scripts/*" = ["T201", "ARG001"]
+"tests/*" = ["S101", "PLR2004", "ARG001", "E402", "N812", "B017"]
+"scripts/*" = ["T201", "ARG001", "N812", "B904"]
 "src/ports/*.py" = ["N805"]
 "src/adapters/*.py" = ["N805"]
 

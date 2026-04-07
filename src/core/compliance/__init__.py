@@ -2,11 +2,11 @@
 # MODULE: Compliance Package
 
 from src.core.compliance.base import (
+    ComplianceAlert,
     FourEyesApproval,
+    GoBDComplianceRecord,
     MoneyLaunderingCheck,
     TaxComplianceCheck,
-    GoBDComplianceRecord,
-    ComplianceAlert,
 )
 from src.core.compliance.merkle import MerkleTreeService
 

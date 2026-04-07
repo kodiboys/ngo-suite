@@ -3,8 +3,8 @@
 
 from src.read_models.donation_read_model import (
     DonationReadModel,
-    DonationReadModelRepository,
     DonationReadModelEventHandler,
+    DonationReadModelRepository,
     ProjectReadModel,
     ProjectReadModelEventHandler,
 )
