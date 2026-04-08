@@ -67,9 +67,9 @@ sentry-sdk = { extras = ["fastapi"], version = "^2.13.0" }
 
 # ==================== PDF & Reporting ====================
 reportlab = "^4.2.0"
-weasyprint = "^62.0"
-plotly = "^5.24.0"
-pandas = "^2.2.0"
+weasyprint = "^68.1"
+plotly = "^6.6.0"
+pandas = "^3.0.2"
 openpyxl = "^3.1.0"
 
 # ==================== Cloud & Storage ====================
