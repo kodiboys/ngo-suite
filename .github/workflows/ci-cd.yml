@@ -7,7 +7,7 @@ name: TrueAngels NGO Suite CI/CD Pipeline v3.0
 
 on:
   push:
-    branches: [ main, develop, nj24-main ]
+    branches: [ main, develop ]
   pull_request:
     branches: [ main ]
   schedule:

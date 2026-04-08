@@ -263,7 +263,7 @@ class CircuitBreaker(CircuitBreakerInterface):
         self._local_successes.clear()
 
 
-class CircuitBreakerOpenException(Exception):
+class CircuitBreakerOpenError(Exception):
     """Wird geworfen wenn Circuit Breaker geöffnet ist"""
 
     pass

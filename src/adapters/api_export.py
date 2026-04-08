@@ -66,11 +66,11 @@ async def export_donations(
     try:
         start = datetime.fromisoformat(start_date)
         end = datetime.fromisoformat(end_date)
-    except ValueError:
+    except ValueError as e:
         raise HTTPException(
             status_code=400,
             detail="start_date und end_date müssen im ISO-Format sein (z.B. 2026-01-01T00:00:00)",
-        )
+        ) from e
 
     data: bytes = await export_service.export_donations(
         start_date=start,
@@ -193,11 +193,11 @@ async def export_audit_log(
     try:
         start = datetime.fromisoformat(start_date)
         end = datetime.fromisoformat(end_date)
-    except ValueError:
+    except ValueError as e:
         raise HTTPException(
             status_code=400,
             detail="start_date und end_date müssen im ISO-Format sein",
-        )
+        ) from e
 
     data: bytes = await export_service.export_audit_log(
         start_date=start,
@@ -375,11 +375,11 @@ async def create_bulk_export(
     try:
         start = datetime.fromisoformat(start_date)
         end = datetime.fromisoformat(end_date)
-    except ValueError:
+    except ValueError as e:
         raise HTTPException(
             status_code=400,
             detail="start_date und end_date müssen im ISO-Format sein",
-        )
+        ) from e
 
     exports: list[bytes] = []
     filenames: list[str] = []

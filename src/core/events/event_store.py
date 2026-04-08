@@ -682,13 +682,13 @@ class AggregateRoot:
 # ==================== Exceptions ====================
 
 
-class ConcurrencyException(Exception):
+class ConcurrencyError(Exception):
     """Wird geworfen bei Optimistic Locking Konflikten"""
 
     pass
 
 
-class EventStoreException(Exception):
+class EventStoreError(Exception):
     """Base Exception für Event Store Fehler"""
 
     pass

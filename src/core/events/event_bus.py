@@ -140,8 +140,7 @@ class EventBus:
         try:
             # Circuit Breaker prüfen
             cb_key = f"cb:{event.event_type}"
-            if cb_key in self.circuit_breakers:
-                if not self.circuit_breakers[cb_key].allow_request():
+            if cb_key in self.circuit_breakers and not self.circuit_breakers[cb_key].allow_request():
                     logger.warning(f"Circuit breaker open for {event.event_type}, event queued")
                     await self.redis.lpush(
                         f"cb_queue:{event.event_type}", json.dumps(asdict(event))
@@ -378,9 +377,8 @@ def update_project_kpi(project_id: UUID):
     from src.core.entities.base import Donation, Project
 
     engine = create_engine("postgresql://admin:password@postgres:5432/trueangels")
-    Session = sessionmaker(bind=engine)
-
-    with Session() as session:
+    session_maker = sessionmaker(bind=engine)
+with session_maker() as session:
         # Summiere alle Spenden für Projekt
         total = (
             session.query(Donation)

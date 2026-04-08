@@ -53,15 +53,13 @@ class Settings(BaseSettings):
     DB_PASSWORD: SecretStr = Field(default=SecretStr("change_me"))
 
     @property
-    def DATABASE_URL(self) -> str:
+    def database_url(self) -> str:
         """PostgreSQL Verbindungs-URL"""
-        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD.get_secret_value()}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
-
+        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD.get_secret_value()}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}
     @property
-    def DATABASE_URL_ASYNC(self) -> str:
+    def database_url_async(self) -> str:
         """Async PostgreSQL Verbindungs-URL"""
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD.get_secret_value()}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
-
     # ==================== Redis ====================
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
@@ -69,12 +67,11 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
 
     @property
-    def REDIS_URL(self) -> str:
+    def redis_url(self) -> str:
         """Redis Verbindungs-URL"""
         if self.REDIS_PASSWORD:
             return f"redis://:{self.REDIS_PASSWORD.get_secret_value()}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
-
     # ==================== Celery ====================
     CELERY_BROKER_URL: str | None = None
     CELERY_RESULT_BACKEND: str | None = None
