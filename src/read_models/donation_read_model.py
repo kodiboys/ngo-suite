@@ -20,6 +20,7 @@ from src.core.events.event_store import DomainEvent
 # 4. Variablen-Zuweisungen (Logger erst JETZT)
 logger = logging.getLogger(__name__)
 
+
 class DonationReadModel(Base):
     """
     Denormalisierte Read Model Tabelle für Spenden

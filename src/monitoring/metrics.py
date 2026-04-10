@@ -46,7 +46,9 @@ db_query_duration_seconds = Histogram(
 )
 
 db_pool_connections = Gauge(
-    "db_pool_connections", "Database pool connections", ["state"]  # active, idle, total
+    "db_pool_connections",
+    "Database pool connections",
+    ["state"],  # active, idle, total
 )
 
 # Business Metrics

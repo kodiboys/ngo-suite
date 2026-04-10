@@ -1,0 +1,18 @@
+# FILE: grafana/dashboards/default.yml
+# MODULE: Grafana Dashboard Provisioning Configuration
+# Automatisches Laden von Dashboards beim Start
+
+apiVersion: 1
+
+providers:
+  - name: 'TrueAngels Dashboards'
+    orgId: 1
+    folder: 'TrueAngels'
+    folderUid: 'trueangels-folder'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: true

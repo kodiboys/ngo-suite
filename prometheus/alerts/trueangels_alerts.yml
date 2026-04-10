@@ -1,0 +1,21 @@
+groups:
+  - name: trueangels_alerts
+    interval: 30s
+    rules:
+      - alert: APIDown
+        expr: up{job="trueangels_api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API ist nicht erreichbar"
+          description: "Der TrueAngels API-Endpunkt ist seit mehr als 1 Minute down."
+
+      - alert: PostgresHighConnections
+        expr: pg_stat_database_numbackends > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Hohe Anzahl Datenbankverbindungen"
+          description: "PostgreSQL hat {{ $value }} aktive Verbindungen."

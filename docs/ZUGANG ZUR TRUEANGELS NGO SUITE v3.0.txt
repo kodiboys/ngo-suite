@@ -1,0 +1,263 @@
+## 📍 **ZUGANG ZUR TRUEANGELS NGO SUITE v3.0**
+
+Die Suite besteht aus mehreren Komponenten. Hier ist die vollständige Übersicht aller Zugänge:
+
+---
+
+## 🌐 **HAUPTZUGÄNGE**
+
+### **1. API (Backend & Buchhaltung)**
+```
+https://api.angels4ukraine.de
+https://api.angels4ukraine.de/docs          # Swagger UI (API Dokumentation)
+https://api.angels4ukraine.de/redoc         # ReDoc (Alternative Dokumentation)
+```
+
+**Hier erledigen Sie:**
+- ✅ SKR42 Buchhaltung (über API-Endpoints)
+- ✅ Spenden verwalten (CRUD)
+- ✅ Projekte verwalten
+- ✅ Compliance Reports generieren
+- ✅ Exporte (DATEV, CSV, Excel)
+- ✅ Transparenz-API
+
+---
+
+### **2. Streamlit Dashboard (Transparenz & Reporting)**
+```
+https://transparenz.angels4ukraine.de
+```
+
+**Hier erledigen Sie:**
+- ✅ **Transparenz-Dashboard** (öffentliche Spendenübersicht)
+- ✅ KPI-Cards (Gesamtspenden, Fortschritt, etc.)
+- ✅ Spendentabelle (pseudonymisiert)
+- ✅ Timeline-Charts
+- ✅ Projekt-Übersicht mit Fortschrittsbalken
+- ✅ Bedarfslisten
+
+> ⚠️ **Hinweis:** Dies ist das öffentliche Transparenz-Dashboard für Spender. Für die Buchhaltung benötigen Sie die API oder ein separates Admin-Dashboard.
+
+---
+
+### **3. Grafana (Monitoring & Metriken)**
+```
+https://monitoring.angels4ukraine.de
+```
+
+**Login:**
+- Benutzer: `admin`
+- Passwort: `${GRAFANA_PASSWORD}` (aus Ihrer `.env` Datei)
+
+**Hier erledigen Sie:**
+- ✅ System-Monitoring
+- ✅ API Performance Metriken
+- ✅ Datenbank Metriken
+- ✅ Log-Analyse
+
+---
+
+### **4. Prometheus (Metriken)**
+```
+https://metrics.angels4ukraine.de
+```
+
+**Hier erledigen Sie:**
+- ✅ Metriken abfragen
+- ✅ Alert Rules einsehen
+
+---
+
+### **5. MinIO Console (Storage)**
+```
+https://console.angels4ukraine.de
+```
+
+**Login:**
+- Benutzer: `${MINIO_ACCESS_KEY}` (in `.env` Datei)
+- Passwort: `${MINIO_SECRET_KEY}` (in `.env` Datei)
+
+**Hier erledigen Sie:**
+- ✅ Backups verwalten
+- ✅ Uploads einsehen
+- ✅ Dokumente verwalten
+
+---
+
+### **6. Vault (Secrets Management)**
+```
+https://secrets.angels4ukraine.de
+```
+
+**Hier erledigen Sie:**
+- ✅ API Keys verwalten
+- ✅ Secrets speichern
+- ✅ Zugriffsrechte
+
+---
+
+## 📊 **BUCHHALTUNG & SKR42 - DIE WICHTIGSTEN ENDPOINTS**
+
+### **Buchhaltungs-Endpoints (über API)**
+
+| Funktion | Endpoint | Methode |
+|----------|----------|---------|
+| **SKR42 Bilanz generieren** | `/api/v1/reports/balance-sheet` | GET |
+| **DATEV Export** | `/api/v1/reports/export/datev-csv` | GET |
+| **Spenden exportieren** | `/api/v1/export/donations` | GET |
+| **Audit Log exportieren** | `/api/v1/export/audit-log` | GET |
+| **Zuwendungsbescheinigung** | `/api/v1/reports/donation-receipt/{donation_id}` | GET |
+| **Jahresbericht** | `/api/v1/export/financial-report/{year}` | GET |
+| **Compliance Dashboard** | `/api/v1/compliance/dashboard` | GET |
+| **4-Augen-Freigaben** | `/api/v1/compliance/four-eyes/pending` | GET |
+
+### **Spenden-Endpoints**
+
+| Funktion | Endpoint | Methode |
+|----------|----------|---------|
+| **Spende erstellen** | `/api/v1/payments/create-donation` | POST |
+| **Spenden auflisten** | `/api/v1/donations` | GET |
+| **Spende abrufen** | `/api/v1/donations/{donation_id}` | GET |
+| **Spende aktualisieren** | `/api/v1/donations/{donation_id}` | PUT |
+| **Spende stornieren** | `/api/v1/donations/{donation_id}` | DELETE |
+
+### **Projekt-Endpoints**
+
+| Funktion | Endpoint | Methode |
+|----------|----------|---------|
+| **Projekte auflisten** | `/api/v1/projects` | GET |
+| **Projekt erstellen** | `/api/v1/projects` | POST |
+| **Projekt abrufen** | `/api/v1/projects/{project_id}` | GET |
+| **Projekt aktualisieren** | `/api/v1/projects/{project_id}` | PUT |
+| **Projekt löschen** | `/api/v1/projects/{project_id}` | DELETE |
+
+---
+
+## 🖥️ **EMPFOHLENE TOOLS FÜR DIE BUCHHALTUNG**
+
+### **Option 1: Swagger UI (Web-basiert)**
+```
+https://api.angels4ukraine.de/docs
+```
+- ✅ Einfach zu bedienen
+- ✅ Alle Endpoints dokumentiert
+- ✅ Direkt im Browser testbar
+
+### **Option 2: Postman / Insomnia**
+```json
+// Sammlung für Postman
+{
+  "name": "TrueAngels API",
+  "variables": [
+    { "key": "base_url", "value": "https://api.angels4ukraine.de" },
+    { "key": "token", "value": "IHR_ACCESS_TOKEN" }
+  ]
+}
+```
+
+### **Option 3: Python Script**
+```python
+import requests
+
+# Login
+response = requests.post(
+    "https://api.angels4ukraine.de/api/v1/auth/login",
+    json={"email": "admin@angels4ukraine.de", "password": "Admin123!"}
+)
+token = response.json()["access_token"]
+
+headers = {"Authorization": f"Bearer {token}"}
+
+# SKR42 Bilanz abrufen
+balance = requests.get(
+    "https://api.angels4ukraine.de/api/v1/reports/balance-sheet?year=2024",
+    headers=headers
+)
+print(balance.json())
+
+# Spenden exportieren
+export = requests.get(
+    "https://api.angels4ukraine.de/api/v1/export/donations",
+    headers=headers,
+    params={
+        "start_date": "2024-01-01",
+        "end_date": "2024-12-31",
+        "format": "excel"
+    }
+)
+with open("spenden_2024.xlsx", "wb") as f:
+    f.write(export.content)
+```
+
+### **Option 4: cURL (Command Line)**
+```bash
+# Login
+TOKEN=$(curl -s -X POST https://api.angels4ukraine.de/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@angels4ukraine.de","password":"Admin123!"}' \
+  | jq -r '.access_token')
+
+# SKR42 Bilanz
+curl -s -X GET "https://api.angels4ukraine.de/api/v1/reports/balance-sheet?year=2024" \
+  -H "Authorization: Bearer $TOKEN"
+
+# DATEV Export
+curl -s -X GET "https://api.angels4ukraine.de/api/v1/reports/export/datev-csv?start_date=2024-01-01&end_date=2024-12-31" \
+  -H "Authorization: Bearer $TOKEN" \
+  -o datev_export.csv
+```
+
+---
+
+## 📋 **QUICK REFERENCE KARTE**
+
+| Aufgabe | Wo? | URL |
+|---------|-----|-----|
+| **Buchhaltung / SKR42** | API (Swagger UI) | `https://api.angels4ukraine.de/docs` |
+| **Spenden verwalten** | API (Swagger UI) | `https://api.angels4ukraine.de/docs` |
+| **Transparenz einsehen** | Streamlit Dashboard | `https://transparenz.angels4ukraine.de` |
+| **DATEV Export** | API | `https://api.angels4ukraine.de/api/v1/reports/export/datev-csv` |
+| **Monitoring** | Grafana | `https://monitoring.angels4ukraine.de` |
+| **Backups verwalten** | MinIO Console | `https://console.angels4ukraine.de` |
+| **Secrets verwalten** | Vault | `https://secrets.angels4ukraine.de` |
+
+---
+
+## 🔑 **ERSTE SCHRITTE FÜR DIE BUCHHALTUNG**
+
+### **1. Einloggen über Swagger UI**
+1. Öffnen Sie `https://api.angels4ukraine.de/docs`
+2. Klicken Sie auf `Authorize` (oben rechts)
+3. Führen Sie den Login-Endpoint aus:
+   ```json
+   {
+     "email": "admin@angels4ukraine.de",
+     "password": "Admin123!"
+   }
+   ```
+4. Kopieren Sie den `access_token`
+5. Fügen Sie ihn im Authorize-Dialog ein: `Bearer {access_token}`
+
+### **2. SKR42 Bilanz generieren**
+- Endpoint: `GET /api/v1/reports/balance-sheet`
+- Parameter: `year=2024`, `project_id=optional`
+
+### **3. DATEV Export für Steuerberater**
+- Endpoint: `GET /api/v1/reports/export/datev-csv`
+- Parameter: `start_date=2024-01-01`, `end_date=2024-12-31`
+
+### **4. Zuwendungsbescheinigung für Spender**
+- Endpoint: `GET /api/v1/reports/donation-receipt/{donation_id}`
+
+---
+
+## 📱 **MOBILE ZUGÄNGE (PWA)**
+
+Die Suite ist als Progressive Web App (PWA) installierbar:
+
+- **iOS:** Safari öffnen → Teilen → Zum Home-Bildschirm
+- **Android:** Chrome → Menü → Zum Home-Bildschirm hinzufügen
+
+---
+
+**Die Buchhaltung erfolgt also hauptsächlich über die API (Swagger UI) unter `https://api.angels4ukraine.de/docs`!** 📊

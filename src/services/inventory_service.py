@@ -353,9 +353,7 @@ class InventoryService:
 
             return item
 
-    async def get_low_stock_for_needs(
-        self, project_id: UUID | None = None
-    ) -> list[dict[str, Any]]:
+    async def get_low_stock_for_needs(self, project_id: UUID | None = None) -> list[dict[str, Any]]:
         """Listet Artikel mit niedrigem Bestand, die für Bedarfe relevant sind"""
         async with self.session_factory() as session:
             stmt = select(InventoryItem).where(

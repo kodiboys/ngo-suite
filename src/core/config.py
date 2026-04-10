@@ -1,31 +1,30 @@
 # FILE: src/core/config.py
 # MODULE: Zentrale Konfiguration für TrueAngels NGO Suite
 # Lädt Umgebungsvariablen, verwaltet Secrets, stellt Settings bereit
+# Version: 3.0.0 - Pydantic V2 (NUR model_config, KEIN class Config!)
 
-from functools import lru_cache
 from pathlib import Path
+from functools import lru_cache
+from contextlib import suppress
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """
-    Zentrale Konfiguration für die TrueAngels NGO Suite.
-    Lädt Werte aus .env Datei und Umgebungsvariablen.
-    """
-
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
         case_sensitive=False,
-        extra="ignore"
+	env_file=".env",
+	env_file_encoding="utf-8",
+	extra="ignore"
     )
 
     # ==================== Basis Konfiguration ====================
     APP_NAME: str = "TrueAngels NGO Suite"
     APP_VERSION: str = "3.0.0"
-    ENVIRONMENT: str = Field(default="development", pattern="^(development|staging|production|test)$")
+    ENVIRONMENT: str = Field(
+        default="development", pattern="^(development|staging|production|test)$"
+    )
     DEBUG: bool = Field(default=False)
     SECRET_KEY: SecretStr = Field(default=SecretStr("change_me_in_production"))
 
@@ -36,14 +35,16 @@ class Settings(BaseSettings):
     API_WORKERS: int = 4
 
     # CORS
-    CORS_ORIGINS: list[str] = Field(default=[
-        "http://localhost:3000",
-        "http://localhost:8501",
-        "https://angels4ukraine.de",
-        "https://www.angels4ukraine.de",
-        "https://api.angels4ukraine.de",
-        "https://transparenz.angels4ukraine.de"
-    ])
+    CORS_ORIGINS: list[str] = Field(
+        default=[
+            "http://localhost:3000",
+            "http://localhost:8501",
+            "https://angels4ukraine.de",
+            "https://www.angels4ukraine.de",
+            "https://api.angels4ukraine.de",
+            "https://transparenz.angels4ukraine.de",
+        ]
+    )
 
     # ==================== Datenbank ====================
     DB_HOST: str = "localhost"
@@ -53,13 +54,15 @@ class Settings(BaseSettings):
     DB_PASSWORD: SecretStr = Field(default=SecretStr("change_me"))
 
     @property
-    def database_url(self) -> str:
+    def DATABASE_URL(self) -> str:
         """PostgreSQL Verbindungs-URL"""
-        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD.get_secret_value()}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}
+        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD.get_secret_value()}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
     @property
-    def database_url_async(self) -> str:
+    def DATABASE_URL_ASYNC(self) -> str:
         """Async PostgreSQL Verbindungs-URL"""
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD.get_secret_value()}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
     # ==================== Redis ====================
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
@@ -67,11 +70,12 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
 
     @property
-    def redis_url(self) -> str:
+    def REDIS_URL(self) -> str:
         """Redis Verbindungs-URL"""
         if self.REDIS_PASSWORD:
             return f"redis://:{self.REDIS_PASSWORD.get_secret_value()}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+
     # ==================== Celery ====================
     CELERY_BROKER_URL: str | None = None
     CELERY_RESULT_BACKEND: str | None = None
@@ -82,7 +86,12 @@ class Settings(BaseSettings):
     @classmethod
     def set_celery_broker(cls, v, info):
         if v is None:
-            return f"redis://:{info.data.get('REDIS_PASSWORD', '')}@{info.data.get('REDIS_HOST', 'localhost')}:{info.data.get('REDIS_PORT', 6379)}/0"
+            data = info.data
+            password = data.get("REDIS_PASSWORD", "")
+            password_str = (
+                password.get_secret_value() if hasattr(password, "get_secret_value") else password
+            )
+            return f"redis://:{password_str}@{data.get('REDIS_HOST', 'localhost')}:{data.get('REDIS_PORT', 6379)}/0"
         return v
 
     # ==================== Stripe ====================
@@ -142,7 +151,7 @@ class Settings(BaseSettings):
 
     # ==================== Transparenz ====================
     TRANSPARENCY_SALT: str = Field(default="trueangels_salt_2024")
-    TRANSPARENCY_CACHE_TTL: int = 300  # 5 Minuten
+    TRANSPARENCY_CACHE_TTL: int = 300
 
     # ==================== Rate Limiting ====================
     RATE_LIMIT_GLOBAL: int = 1000
@@ -158,7 +167,7 @@ class Settings(BaseSettings):
 
     # ==================== Logging ====================
     LOG_LEVEL: str = Field(default="INFO", pattern="^(DEBUG|INFO|WARNING|ERROR|CRITICAL)$")
-    LOG_FORMAT: str = "json"  # json oder text
+    LOG_FORMAT: str = "json"
 
     # ==================== Security ====================
     JWT_ALGORITHM: str = "HS256"
@@ -181,7 +190,8 @@ class Settings(BaseSettings):
     def ensure_directories(self):
         """Stellt sicher, dass alle benötigten Verzeichnisse existieren"""
         for dir_path in [self.LOG_DIR, self.BACKUP_DIR, self.UPLOAD_DIR, self.STATIC_DIR]:
-            dir_path.mkdir(parents=True, exist_ok=True)
+            with suppress(PermissionError):
+                dir_path.mkdir(parents=True, exist_ok=True)
 
     @property
     def is_development(self) -> bool:
@@ -206,13 +216,9 @@ class Settings(BaseSettings):
             secrets["stripe"] = self.STRIPE_WEBHOOK_SECRET.get_secret_value()
         return secrets
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"
-
 
 # ==================== Singleton Instance ====================
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

@@ -1,0 +1,89 @@
+# FILE: Dockerfile.celery
+# MODULE: Celery Worker Container für Background Tasks
+# Version: 3.0.0 - Optimiert für Produktion mit vollstaendigen Dependencies
+
+FROM python:3.12-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libpq-dev \
+    libffi-dev \
+    libssl-dev \
+    curl \
+    ca-certificates \
+    make \
+    git \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-ca-certificates
+
+# Create non-root user with fixed UID/GID
+RUN groupadd -r trueangels --gid=1000 \
+    && useradd -r -g trueangels --uid=1000 -m -s /bin/bash trueangels
+
+WORKDIR /app
+
+# Copy dependency files
+COPY pyproject.toml poetry.lock* ./
+
+# Install Poetry 2.1.2
+RUN pip install --no-cache-dir poetry==2.1.2
+
+# Configure Poetry for optimal build
+RUN poetry config virtualenvs.create false \
+    && poetry config installer.parallel true \
+    && poetry config installer.max-workers 4
+
+# Install all dependencies (inkl. dev für celery)
+RUN poetry install --no-interaction --no-ansi --no-root
+
+# Copy application code
+COPY --chown=trueangels:trueangels src/ ./src/
+COPY --chown=trueangels:trueangels scripts/ ./scripts/
+COPY --chown=trueangels:trueangels alembic/ ./alembic/
+COPY --chown=trueangels:trueangels alembic.ini .
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/tmp /app/celerybeat-data \
+    && chown -R trueangels:trueangels /app/logs /app/tmp /app/celerybeat-data
+
+# Set environment variables
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    TZ=Europe/Berlin \
+    LANG=de_DE.UTF-8 \
+    LANGUAGE=de_DE:de \
+    LC_ALL=de_DE.UTF-8 \
+    CELERY_BROKER_URL=redis://redis:6379/0 \
+    CELERY_RESULT_BACKEND=redis://redis:6379/1
+
+# Set timezone
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Switch to non-root user
+USER trueangels
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD celery -A src.core.events.event_bus status || exit 1
+
+# Labels
+LABEL org.opencontainers.image.title="TrueAngels Celery Worker"
+LABEL org.opencontainers.image.description="Celery Worker für Background Tasks (PDF, Emails, Notifications)"
+LABEL org.opencontainers.image.version="3.0.0"
+LABEL org.opencontainers.image.vendor="TrueAngels e.V."
+LABEL maintainer="anto@angels4ukraine.net"
+
+# Run celery worker with production settings
+CMD ["celery", "-A", "src.core.events.event_bus", "worker", \
+    "--loglevel=info", \
+    "--concurrency=4", \
+    "--max-tasks-per-child=100", \
+    "--time-limit=300", \
+    "--soft-time-limit=240", \
+    "--without-gossip", \
+    "--without-mingle", \
+    "--without-heartbeat"]
+

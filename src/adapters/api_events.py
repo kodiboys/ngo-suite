@@ -360,9 +360,9 @@ async def get_aggregate_stats(
         aggregates_by_type = {row.aggregate_type: row.count for row in agg_type_result}
 
         # Durchschnittliche Events pro Aggregate
-        select(
-            EventStoreDB.aggregate_type, func.avg(func.count()).label("avg_events")
-        ).group_by(EventStoreDB.aggregate_type)
+        select(EventStoreDB.aggregate_type, func.avg(func.count()).label("avg_events")).group_by(
+            EventStoreDB.aggregate_type
+        )
 
         return {
             "total_aggregates": total_aggregates,

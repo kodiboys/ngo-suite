@@ -1,0 +1,315 @@
+# FILE: prometheus/alerts.yml
+# MODULE: Prometheus Alert Rules for TrueAngels NGO Suite
+# Definiert Alert-Regeln für Monitoring und Benachrichtigungen
+
+groups:
+  # ==================== API Alerts ====================
+  - name: api_alerts
+    interval: 30s
+    rules:
+      - alert: APIHighErrorRate
+        expr: |
+          rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: "Hohe Fehlerrate in der API"
+          description: "Die API hat eine Fehlerrate von {{ $value }}% in den letzten 5 Minuten"
+
+      - alert: APIHighLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint)) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "Hohe API Latenz"
+          description: "95. Perzentil der API-Latenz ist {{ $value }}s für Endpoint {{ $labels.endpoint }}"
+
+      - alert: APIDown
+        expr: up{job="trueangels-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: "API ist nicht erreichbar"
+          description: "Der API Service ist seit mehr als 1 Minute nicht erreichbar"
+
+  # ==================== Database Alerts ====================
+  - name: database_alerts
+    interval: 30s
+    rules:
+      - alert: PostgresDown
+        expr: up{job="postgres-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: postgresql
+        annotations:
+          summary: "PostgreSQL ist nicht erreichbar"
+          description: "Die PostgreSQL Datenbank ist nicht erreichbar"
+
+      - alert: PostgresHighConnections
+        expr: pg_stat_database_numbackends > 150
+        for: 5m
+        labels:
+          severity: warning
+          service: postgresql
+        annotations:
+          summary: "Hohe Anzahl von Datenbankverbindungen"
+          description: "Es gibt {{ $value }} aktive Verbindungen zur Datenbank"
+
+      - alert: PostgresLowCacheHitRatio
+        expr: pg_stat_database_cache_hit_ratio < 90
+        for: 10m
+        labels:
+          severity: warning
+          service: postgresql
+        annotations:
+          summary: "Niedrige Cache-Trefferquote"
+          description: "Die Cache-Trefferquote ist nur {{ $value }}%"
+
+      - alert: PostgresHighTransactionRollback
+        expr: rate(pg_stat_database_xact_rollback[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: postgresql
+        annotations:
+          summary: "Hohe Anzahl von Transaktions-Rollbacks"
+          description: "Es gibt {{ $value }} Rollbacks pro Sekunde"
+
+  # ==================== Redis Alerts ====================
+  - name: redis_alerts
+    interval: 30s
+    rules:
+      - alert: RedisDown
+        expr: up{job="redis-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: redis
+        annotations:
+          summary: "Redis ist nicht erreichbar"
+          description: "Der Redis Service ist nicht erreichbar"
+
+      - alert: RedisHighMemory
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "Hoher Redis Speicherverbrauch"
+          description: "Redis verwendet {{ $value }}% des maximalen Speichers"
+
+  # ==================== Business Metrics Alerts ====================
+  - name: business_alerts
+    interval: 1m
+    rules:
+      - alert: LowDonationVolume
+        expr: rate(donations_total[1h]) < 10
+        for: 6h
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "Niedriges Spendenaufkommen"
+          description: "Weniger als 10 Spenden pro Stunde in den letzten 6 Stunden"
+
+      - alert: HighPaymentFailureRate
+        expr: |
+          rate(payment_failure_total[30m]) / rate(payment_success_total[30m]) > 0.1
+        for: 15m
+        labels:
+          severity: critical
+          service: payments
+        annotations:
+          summary: "Hohe Zahlungsfehlerrate"
+          description: "Die Zahlungsfehlerrate beträgt {{ $value | humanizePercentage }}"
+
+      - alert: MoneyLaunderingAlert
+        expr: increase(money_laundering_alerts[1h]) > 0
+        labels:
+          severity: critical
+          service: compliance
+        annotations:
+          summary: "Geldwäsche-Verdacht erkannt"
+          description: "Ein Geldwäsche-Verdachtsfall wurde in der letzten Stunde gemeldet"
+
+      - alert: FourEyesPending
+        expr: four_eyes_pending > 5
+        for: 2h
+        labels:
+          severity: warning
+          service: compliance
+        annotations:
+          summary: "Ausstehende 4-Augen-Freigaben"
+          description: "Es gibt {{ $value }} ausstehende 4-Augen-Freigaben seit über 2 Stunden"
+
+  # ==================== Resource Alerts ====================
+  - name: resource_alerts
+    interval: 30s
+    rules:
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "Hohe CPU-Auslastung"
+          description: "Die CPU-Auslastung ist {{ $value | humanizePercentage }}"
+
+      - alert: HighMemoryUsage
+        expr: (process_resident_memory_bytes / 1e9) > 1.5
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "Hoher Speicherverbrauch"
+          description: "Der Speicherverbrauch ist {{ $value }}GB"
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "Niedriger freier Festplattenspeicher"
+          description: "Nur noch {{ $value }}% freier Speicherplatz verfügbar"
+
+  # ==================== Cache Alerts ====================
+  - name: cache_alerts
+    interval: 30s
+    rules:
+      - alert: LowCacheHitRate
+        expr: |
+          rate(cache_hits_total[5m]) / (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m])) < 0.7
+        for: 10m
+        labels:
+          severity: warning
+          service: cache
+        annotations:
+          summary: "Niedrige Cache-Trefferquote"
+          description: "Die Cache-Trefferquote ist nur {{ $value | humanizePercentage }}"
+
+  # ==================== Rate Limiting Alerts ====================
+  - name: rate_limit_alerts
+    interval: 30s
+    rules:
+      - alert: RateLimitHits
+        expr: increase(rate_limit_hits[10m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: rate_limiting
+        annotations:
+          summary: "Hohe Anzahl von Rate-Limit-Treffern"
+          description: "{{ $value }} Rate-Limit-Treffer in den letzten 10 Minuten"
+
+  # ==================== Circuit Breaker Alerts ====================
+  - name: circuit_breaker_alerts
+    interval: 30s
+    rules:
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state == 1
+        for: 1m
+        labels:
+          severity: critical
+          service: circuit_breaker
+        annotations:
+          summary: "Circuit Breaker ist geöffnet"
+          description: "Der Circuit Breaker für {{ $labels.service }} ist geöffnet"
+
+  # ==================== Certificate Alerts ====================
+  - name: certificate_alerts
+    interval: 1h
+    rules:
+      - alert: CertificateExpiringSoon
+        expr: (certificate_expiry_timestamp_seconds - time()) / 86400 < 30
+        for: 1h
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "SSL-Zertifikat läuft bald ab"
+          description: "Das SSL-Zertifikat läuft in {{ $value }} Tagen ab"
+
+      - alert: CertificateExpired
+        expr: (certificate_expiry_timestamp_seconds - time()) / 86400 < 0
+        for: 0m
+        labels:
+          severity: critical
+          service: security
+        annotations:
+          summary: "SSL-Zertifikat ist abgelaufen"
+          description: "Das SSL-Zertifikat ist seit {{ $value }} Tagen abgelaufen"
+
+  # ==================== Backup Alerts ====================
+  - name: backup_alerts
+    interval: 1h
+    rules:
+      - alert: BackupFailed
+        expr: backup_success{job="trueangels"} == 0
+        for: 30m
+        labels:
+          severity: critical
+          service: backup
+        annotations:
+          summary: "Backup fehlgeschlagen"
+          description: "Das letzte Backup war nicht erfolgreich"
+
+      - alert: BackupTooOld
+        expr: (time() - backup_last_success_timestamp) > 86400
+        for: 1h
+        labels:
+          severity: warning
+          service: backup
+        annotations:
+          summary: "Backup ist zu alt"
+          description: "Das letzte erfolgreiche Backup ist mehr als 24 Stunden alt"
+
+  # ==================== Queue Alerts ====================
+  - name: queue_alerts
+    interval: 30s
+    rules:
+      - alert: CeleryQueueLengthHigh
+        expr: celery_queue_length > 1000
+        for: 10m
+        labels:
+          severity: warning
+          service: celery
+        annotations:
+          summary: "Celery Queue ist sehr lang"
+          description: "Die Celery Queue enthält {{ $value }} Tasks"
+
+      - alert: CeleryTaskFailed
+        expr: rate(celery_tasks_total{status="failed"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: critical
+          service: celery
+        annotations:
+          summary: "Hohe Anzahl fehlgeschlagener Celery Tasks"
+          description: "{{ $value }} Tasks pro Minute schlagen fehl"
+
+  # ==================== Webhook Alerts ====================
+  - name: webhook_alerts
+    interval: 30s
+    rules:
+      - alert: WebhookFailed
+        expr: increase(webhook_failures_total[10m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: webhooks
+        annotations:
+          summary: "Webhook-Fehler"
+          description: "{{ $value }} Webhook-Fehler in den letzten 10 Minuten"

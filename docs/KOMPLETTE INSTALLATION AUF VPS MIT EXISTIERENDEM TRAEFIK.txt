@@ -1,0 +1,1009 @@
+# 🚀 **TRUEANGELS NGO SUITE v3.0 - KOMPLETTE INSTALLATION AUF VPS MIT EXISTIERENDEM TRAEFIK**
+
+## 📋 **VORAUSSETZUNGEN**
+
+### **Server-Anforderungen**
+```yaml
+CPU: 4+ Kerne
+RAM: 8+ GB
+Storage: 50+ GB SSD
+OS: Ubuntu 22.04 LTS / Debian 12
+Docker: 24.0+
+Docker Compose: 2.20+
+Git: 2.40+
+```
+
+### **Bereits vorhanden (Ihre Infrastruktur)**
+```yaml
+Traefik v3: ✅ Läuft unter traefik.angels4ukraine.de
+Netzwerk:   ✅ Name: proxy (extern)
+CertResolver: ✅ http_resolver (für Let's Encrypt)
+Domain:     ✅ angels4ukraine.de
+Email:      ✅ anto@angels4ukraine.net
+```
+
+---
+
+## 📁 **BENÖTIGTE DATEIEN (ÜBERSICHT)**
+
+```
+/opt/trueangels/
+├── .env                           # Environment Variablen
+├── docker-compose.yml             # Docker Compose Konfiguration
+├── Dockerfile.api                 # FastAPI Backend
+├── Dockerfile.celery              # Celery Worker
+├── Dockerfile.celery-beat         # Celery Beat (Scheduler)
+├── Dockerfile.streamlit           # Streamlit Frontend
+├── Dockerfile.nginx               # Nginx (falls benötigt)
+├── nginx.conf                     # Nginx Konfiguration
+├── prometheus.yml                 # Prometheus Monitoring
+├── requirements_streamlit.txt     # Streamlit Dependencies
+├── pyproject.toml                 # Poetry Konfiguration
+├── poetry.lock                    # Poetry Lockfile
+├── init-db.sql                    # Initiale Datenbank
+├── src/                           # Quellcode (gesamtes Projekt)
+├── tests/                         # Tests
+├── scripts/                       # Hilfsskripte
+├── public/                        # Statische Dateien
+├── backups/                       # Backup-Verzeichnis
+├── logs/                          # Log-Verzeichnis
+└── letsencrypt/                   # Let's Encrypt (wird von Traefik genutzt)
+```
+
+---
+
+## 🔧 **SCHRITT 1: SERVER VORBEREITEN**
+
+### **1.1 Mit dem VPS verbinden**
+```bash
+ssh root@ihre-vps-ip
+# oder
+ssh benutzer@ihre-vps-ip
+```
+
+### **1.2 System aktualisieren**
+```bash
+sudo apt-get update && sudo apt-get upgrade -y
+sudo apt-get install -y curl wget git docker.io docker-compose-v2
+```
+
+### **1.3 Docker Benutzer einrichten**
+```bash
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+### **1.4 Prüfen ob Traefik-Netzwerk existiert**
+```bash
+docker network ls | grep proxy
+```
+
+**Wenn nicht vorhanden (normalerweise existiert es bereits):**
+```bash
+docker network create proxy
+```
+
+### **1.5 Projektverzeichnis erstellen**
+```bash
+sudo mkdir -p /opt/trueangels
+sudo chown -R $USER:$USER /opt/trueangels
+cd /opt/trueangels
+```
+
+---
+
+## 📁 **SCHRITT 2: ALLE BENÖTIGTEN DATEIEN ERSTELLEN**
+
+### **2.1 Environment Datei (`.env`)**
+
+```bash
+nano /opt/trueangels/.env
+```
+
+```bash
+# FILE: /opt/trueangels/.env
+# ==================== DOMAIN KONFIGURATION ====================
+DOMAIN=angels4ukraine.de
+API_DOMAIN=api.angels4ukraine.de
+TRANSPARENCY_DOMAIN=transparenz.angels4ukraine.de
+STORAGE_DOMAIN=storage.angels4ukraine.de
+
+# ==================== DATENBANK ====================
+DB_NAME=trueangels
+DB_USER=admin
+DB_PASSWORD=$(openssl rand -base64 24)
+DB_HOST=postgres
+DB_PORT=5432
+
+# ==================== REDIS ====================
+REDIS_PASSWORD=$(openssl rand -base64 24)
+
+# ==================== API SICHERHEIT ====================
+SECRET_KEY=$(openssl rand -hex 32)
+ENVIRONMENT=production
+TRANSPARENCY_SALT=trueangels_salt_2024
+
+# ==================== MINIO / WASABI ====================
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=$(openssl rand -base64 24)
+MINIO_BUCKET=trueangels-backups
+
+# ==================== STRIPE (ZAHLUNGEN) ====================
+# Nach Registrierung bei Stripe ersetzen
+STRIPE_SECRET_KEY=sk_live_xxxxxxxxxxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxx
+STRIPE_PUBLIC_KEY=pk_live_xxxxxxxxxxxxx
+
+# ==================== PAYPAL ====================
+# Nach Registrierung bei PayPal ersetzen
+PAYPAL_CLIENT_ID=xxxxxxxxxxxxx
+PAYPAL_CLIENT_SECRET=xxxxxxxxxxxxx
+PAYPAL_MODE=live
+
+# ==================== KLARNA ====================
+# Nach Registrierung bei Klarna ersetzen
+KLARNA_USERNAME=xxxxxxxxxxxxx
+KLARNA_PASSWORD=xxxxxxxxxxxxx
+KLARNA_MODE=live
+
+# ==================== SOCIAL MEDIA ====================
+# Nach Registrierung bei den jeweiligen Plattformen ersetzen
+TWITTER_API_KEY=xxxxxxxxxxxxx
+TWITTER_API_SECRET=xxxxxxxxxxxxx
+FACEBOOK_APP_ID=xxxxxxxxxxxxx
+FACEBOOK_APP_SECRET=xxxxxxxxxxxxx
+LINKEDIN_CLIENT_ID=xxxxxxxxxxxxx
+LINKEDIN_CLIENT_SECRET=xxxxxxxxxxxxx
+
+# ==================== HASHICORP VAULT ====================
+VAULT_TOKEN=$(openssl rand -hex 32)
+VAULT_ADDR=http://vault:8200
+
+# ==================== MONITORING ====================
+GRAFANA_PASSWORD=$(openssl rand -base64 12)
+
+# ==================== E-MAIL (SENDGRID) ====================
+# Nach Registrierung bei SendGrid ersetzen
+SMTP_HOST=smtp.sendgrid.net
+SMTP_PORT=587
+SMTP_USER=apikey
+SMTP_PASSWORD=SG.xxxxxxxxxxxxx
+SMTP_FROM=noreply@angels4ukraine.de
+
+# ==================== TELEGRAM BOT ====================
+# Nach Bot-Erstellung bei @BotFather ersetzen
+TELEGRAM_BOT_TOKEN=xxxxxxxxxxxxx
+TELEGRAM_CHAT_ID=xxxxxxxxxxxxx
+
+# ==================== CORS ====================
+CORS_ORIGINS=https://angels4ukraine.de,https://www.angels4ukraine.de,https://transparenz.angels4ukraine.de
+```
+
+### **2.2 Docker Compose Datei (`docker-compose.yml`)**
+
+```bash
+nano /opt/trueangels/docker-compose.yml
+```
+
+```yaml
+# FILE: /opt/trueangels/docker-compose.yml
+# MODULE: Production Docker Compose mit allen Services
+# Netzwerk: proxy (extern, existierender Traefik)
+# CertResolver: http_resolver
+
+version: '3.8'
+
+services:
+  # ==================== PostgreSQL Datenbank ====================
+  postgres:
+    image: postgres:16-alpine
+    container_name: trueangels_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-trueangels}
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backups/wal:/var/lib/postgresql/wal_archive
+    command: >
+      postgres
+      -c shared_preload_libraries='pg_stat_statements'
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c work_mem=16MB
+      -c archive_mode=on
+      -c archive_command='test ! -f /var/lib/postgresql/wal_archive/%f && cp %p /var/lib/postgresql/wal_archive/%f'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d ${DB_NAME:-trueangels}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+  # ==================== Redis Cache ====================
+  redis:
+    image: redis:7-alpine
+    container_name: trueangels_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    networks:
+      - proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  # ==================== MinIO (S3 Storage) ====================
+  minio:
+    image: minio/minio:latest
+    container_name: trueangels_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.minio.rule=Host(`storage.${DOMAIN}`)"
+      - "traefik.http.services.minio.loadbalancer.server.port=9000"
+      - "traefik.http.routers.minio.tls.certresolver=http_resolver"
+      - "traefik.http.routers.minio-console.rule=Host(`console.${DOMAIN}`)"
+      - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
+      - "traefik.http.routers.minio-console.tls.certresolver=http_resolver"
+
+  # ==================== FastAPI Backend ====================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: trueangels_api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      SECRET_KEY: ${SECRET_KEY}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      TRANSPARENCY_SALT: ${TRANSPARENCY_SALT}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`api.${DOMAIN}`)"
+      - "traefik.http.services.api.loadbalancer.server.port=8000"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=http_resolver"
+
+  # ==================== Celery Worker ====================
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    container_name: trueangels_celery
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=false"
+
+  # ==================== Celery Beat (Scheduler) ====================
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery-beat
+    container_name: trueangels_celery_beat
+    restart: unless-stopped
+    command: celery -A src.core.events.event_bus beat --loglevel=info
+    environment:
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=false"
+
+  # ==================== Streamlit Dashboard ====================
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: trueangels_streamlit
+    restart: unless-stopped
+    environment:
+      API_URL: https://api.${DOMAIN}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.streamlit.rule=Host(`transparenz.${DOMAIN}`)"
+      - "traefik.http.services.streamlit.loadbalancer.server.port=8501"
+      - "traefik.http.routers.streamlit.entrypoints=websecure"
+      - "traefik.http.routers.streamlit.tls.certresolver=http_resolver"
+
+  # ==================== Prometheus Monitoring ====================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: trueangels_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`metrics.${DOMAIN}`)"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=http_resolver"
+
+  # ==================== Grafana Dashboards ====================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: trueangels_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      GF_SERVER_ROOT_URL: https://monitoring.${DOMAIN}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`monitoring.${DOMAIN}`)"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=http_resolver"
+
+  # ==================== HashiCorp Vault ====================
+  vault:
+    image: vault:1.13
+    container_name: trueangels_vault
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_TOKEN}
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    volumes:
+      - vault_data:/vault/data
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vault.rule=Host(`secrets.${DOMAIN}`)"
+      - "traefik.http.services.vault.loadbalancer.server.port=8200"
+      - "traefik.http.routers.vault.entrypoints=websecure"
+      - "traefik.http.routers.vault.tls.certresolver=http_resolver"
+
+  # ==================== Loki Logging ====================
+  loki:
+    image: grafana/loki:latest
+    container_name: trueangels_loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.loki.rule=Host(`logs.${DOMAIN}`)"
+      - "traefik.http.services.loki.loadbalancer.server.port=3100"
+      - "traefik.http.routers.loki.entrypoints=websecure"
+      - "traefik.http.routers.loki.tls.certresolver=http_resolver"
+
+
+# ==================== Netzwerk ====================
+networks:
+  proxy:
+    external: true
+    name: proxy
+
+
+# ==================== Volumes ====================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  vault_data:
+    driver: local
+```
+
+### **2.3 Prometheus Konfiguration (`prometheus.yml`)**
+
+```bash
+nano /opt/trueangels/prometheus.yml
+```
+
+```yaml
+# FILE: /opt/trueangels/prometheus.yml
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'trueangels-api'
+    static_configs:
+      - targets: ['api:8000']
+  
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:9187']
+  
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:9121']
+```
+
+### **2.4 Initiale Datenbank (`init-db.sql`)**
+
+```bash
+nano /opt/trueangels/init-db.sql
+```
+
+```sql
+-- FILE: /opt/trueangels/init-db.sql
+-- Initiale Datenbank-Konfiguration
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+
+-- Benutzer für Monitoring
+CREATE USER monitor WITH PASSWORD 'monitor_password';
+GRANT pg_read_all_settings TO monitor;
+```
+
+### **2.5 Streamlit Dependencies (`requirements_streamlit.txt`)**
+
+```bash
+nano /opt/trueangels/requirements_streamlit.txt
+```
+
+```text
+streamlit>=1.28.0
+streamlit-option-menu>=0.3.6
+streamlit-extras>=0.2.5
+plotly>=5.18.0
+pandas>=2.1.3
+requests>=2.31.0
+pillow>=10.1.0
+python-dotenv>=1.0.0
+```
+
+### **2.6 Poetry Konfiguration (`pyproject.toml`)**
+
+```bash
+nano /opt/trueangels/pyproject.toml
+```
+
+```toml
+# FILE: /opt/trueangels/pyproject.toml
+# (Inhalt aus der vorherigen Antwort - der korrigierten Version)
+```
+
+---
+
+## 🐳 **SCHRITT 3: DOCKERFILES ERSTELLEN**
+
+### **3.1 Dockerfile.api**
+
+```bash
+nano /opt/trueangels/Dockerfile.api
+```
+
+```dockerfile
+# FILE: /opt/trueangels/Dockerfile.api
+FROM python:3.12-slim as builder
+
+RUN apt-get update && apt-get install -y \
+    gcc g++ libpq-dev libffi-dev libssl-dev curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir poetry==2.1.2
+
+WORKDIR /app
+COPY pyproject.toml poetry.lock* ./
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-dev --no-interaction --no-ansi
+
+FROM python:3.12-slim
+RUN apt-get update && apt-get install -y libpq-dev curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r trueangels --gid=1000 \
+    && useradd -r -g trueangels --uid=1000 -m -s /bin/bash trueangels
+
+WORKDIR /app
+COPY --from=builder --chown=trueangels:trueangels /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder --chown=trueangels:trueangels /usr/local/bin /usr/local/bin
+COPY --chown=trueangels:trueangels src/ ./src/
+COPY --chown=trueangels:trueangels alembic/ ./alembic/
+COPY --chown=trueangels:trueangels alembic.ini .
+
+USER trueangels
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["uvicorn", "src.adapters.api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+```
+
+### **3.2 Dockerfile.celery**
+
+```bash
+nano /opt/trueangels/Dockerfile.celery
+```
+
+```dockerfile
+# FILE: /opt/trueangels/Dockerfile.celery
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y \
+    gcc g++ libpq-dev libffi-dev libssl-dev curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r trueangels --gid=1000 \
+    && useradd -r -g trueangels --uid=1000 -m -s /bin/bash trueangels
+
+WORKDIR /app
+COPY pyproject.toml poetry.lock* ./
+RUN pip install --no-cache-dir poetry==2.1.2 \
+    && poetry config virtualenvs.create false \
+    && poetry install --no-dev --no-interaction --no-ansi
+
+COPY --chown=trueangels:trueangels src/ ./src/
+
+USER trueangels
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD celery -A src.core.events.event_bus status || exit 1
+
+CMD ["celery", "-A", "src.core.events.event_bus", "worker", "--loglevel=info", "--concurrency=4"]
+```
+
+### **3.3 Dockerfile.celery-beat**
+
+```bash
+nano /opt/trueangels/Dockerfile.celery-beat
+```
+
+```dockerfile
+# FILE: /opt/trueangels/Dockerfile.celery-beat
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y \
+    libpq-dev curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r trueangels --gid=1000 \
+    && useradd -r -g trueangels --uid=1000 -m -s /bin/bash trueangels
+
+WORKDIR /app
+COPY pyproject.toml poetry.lock* ./
+RUN pip install --no-cache-dir poetry==2.1.2 \
+    && poetry config virtualenvs.create false \
+    && poetry install --no-dev --no-interaction --no-ansi
+
+COPY --chown=trueangels:trueangels src/ ./src/
+RUN mkdir -p /app/celerybeat-data && chown -R trueangels:trueangels /app/celerybeat-data
+
+USER trueangels
+CMD ["celery", "-A", "src.core.events.event_bus", "beat", "--loglevel=info", "--schedule=/app/celerybeat-data/celerybeat-schedule"]
+```
+
+### **3.4 Dockerfile.streamlit**
+
+```bash
+nano /opt/trueangels/Dockerfile.streamlit
+```
+
+```dockerfile
+# FILE: /opt/trueangels/Dockerfile.streamlit
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y \
+    gcc g++ curl ca-certificates \
+    libcairo2 libpango-1.0-0 libpangocairo-1.0-0 \
+    libgdk-pixbuf2.0-0 libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -r trueangels --gid=1000 \
+    && useradd -r -g trueangels --uid=1000 -m -s /bin/bash trueangels
+
+WORKDIR /app
+COPY requirements_streamlit.txt .
+RUN pip install --no-cache-dir -r requirements_streamlit.txt
+
+COPY --chown=trueangels:trueangels streamlit_app.py .
+COPY --chown=trueangels:trueangels public/ ./public/
+COPY --chown=trueangels:trueangels src/ ./src/
+
+RUN mkdir -p /app/.streamlit \
+    && echo '[theme]' > /app/.streamlit/config.toml \
+    && echo 'primaryColor = "#2d6a4f"' >> /app/.streamlit/config.toml
+
+USER trueangels
+EXPOSE 8501
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+
+CMD ["streamlit", "run", "streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
+```
+
+---
+
+## 📂 **SCHRITT 4: QUELLCODE KOPIEREN**
+
+```bash
+# Von Ihrem lokalen Rechner zum VPS
+scp -r /pfad/zu/lokalem/ngo-suite/src root@ihre-vps-ip:/opt/trueangels/
+scp -r /pfad/zu/lokalem/ngo-suite/tests root@ihre-vps-ip:/opt/trueangels/
+scp -r /pfad/zu/lokalem/ngo-suite/scripts root@ihre-vps-ip:/opt/trueangels/
+scp -r /pfad/zu/lokalem/ngo-suite/public root@ihse-vps-ip:/opt/trueangels/
+scp /pfad/zu/lokalem/ngo-suite/streamlit_app.py root@ihre-vps-ip:/opt/trueangels/
+scp /pfad/zu/lokalem/ngo-suite/alembic.ini root@ihre-vps-ip:/opt/trueangels/
+scp /pfad/zu/lokalem/ngo-suite/poetry.lock root@ihre-vps-ip:/opt/trueangels/
+```
+
+**Oder falls Sie den Code bereits auf dem VPS haben:**
+```bash
+cd /opt/trueangels
+git clone https://github.com/kodiboys/ngo-suite.git temp
+cp -r temp/src ./
+cp -r temp/tests ./
+cp -r temp/scripts ./
+cp -r temp/public ./
+cp temp/streamlit_app.py ./
+cp temp/alembic.ini ./
+cp temp/poetry.lock ./
+rm -rf temp
+```
+
+---
+
+## 🔧 **SCHRITT 5: VERZEICHNISSE UND BERECHTIGUNGEN**
+
+```bash
+cd /opt/trueangels
+mkdir -p backups logs public letsencrypt
+mkdir -p backups/wal
+chmod 755 backups logs public
+```
+
+---
+
+## 🚀 **SCHRITT 6: DOCKER IMAGES BAUEN UND STARTEN**
+
+### **6.1 Images bauen**
+```bash
+cd /opt/trueangels
+docker compose build
+```
+
+### **6.2 Container starten**
+```bash
+docker compose up -d
+```
+
+### **6.3 Status prüfen**
+```bash
+docker compose ps
+```
+
+**Erwartete Ausgabe:**
+```
+NAME                      STATUS
+trueangels_api            Up
+trueangels_celery         Up
+trueangels_celery_beat    Up
+trueangels_streamlit      Up
+trueangels_postgres       Up (healthy)
+trueangels_redis          Up (healthy)
+trueangels_minio          Up
+trueangels_prometheus     Up
+trueangels_grafana        Up
+trueangels_vault          Up
+trueangels_loki           Up
+```
+
+### **6.4 Logs prüfen**
+```bash
+docker compose logs -f
+```
+
+---
+
+## 🗄️ **SCHRITT 7: DATENBANK MIGRATIONEN**
+
+```bash
+# Migrationen ausführen
+docker compose exec api alembic upgrade head
+
+# Prüfen
+docker compose exec api alembic current
+```
+
+---
+
+## 👤 **SCHRITT 8: ADMIN BENUTZER ERSTELLEN**
+
+```bash
+# Python Shell öffnen
+docker compose exec api python
+
+# In der Python Shell:
+```
+
+```python
+from src.core.entities.base import User
+from src.services.auth import get_password_hash
+from sqlalchemy import select
+import asyncio
+
+async def create_admin():
+    from src.adapters.api import get_session_factory
+    session_factory = get_session_factory()
+    
+    async with session_factory() as session:
+        # Prüfen ob Admin existiert
+        stmt = select(User).where(User.email == "admin@angels4ukraine.de")
+        result = await session.execute(stmt)
+        admin = result.scalar_one_or_none()
+        
+        if not admin:
+            admin = User(
+                email="admin@angels4ukraine.de",
+                password_hash=get_password_hash("Admin123!"),
+                role="admin",
+                email_verified=True
+            )
+            session.add(admin)
+            await session.commit()
+            print("Admin user created: admin@angels4ukraine.de / Admin123!")
+        else:
+            print("Admin user already exists")
+
+asyncio.run(create_admin())
+```
+
+**Exit mit:** `exit()`
+
+---
+
+## 🔒 **SCHRITT 9: FIREWALL KONFIGURIEREN**
+
+```bash
+# Nur SSH, HTTP, HTTPS erlauben
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw --force enable
+```
+
+---
+
+## ✅ **SCHRITT 10: ZUGÄNGE TESTEN**
+
+```bash
+# API Health Check
+curl -f https://api.angels4ukraine.de/health
+
+# Transparenz Dashboard
+curl -f https://transparenz.angels4ukraine.de/_stcore/health
+
+# MinIO Storage
+curl -f https://storage.angels4ukraine.de/minio/health/live
+
+# Prometheus Metrics
+curl -f https://metrics.angels4ukraine.de/-/healthy
+
+# Grafana
+curl -f https://monitoring.angels4ukraine.de/api/health
+
+# Vault
+curl -f https://secrets.angels4ukraine.de/v1/sys/health
+```
+
+---
+
+## 🌐 **SCHRITT 11: DOMAINS ÜBERPRÜFEN**
+
+| Subdomain | Service | Status |
+|-----------|---------|--------|
+| `api.angels4ukraine.de` | API | ✅ HTTPS |
+| `transparenz.angels4ukraine.de` | Streamlit Dashboard | ✅ HTTPS |
+| `storage.angels4ukraine.de` | MinIO | ✅ HTTPS |
+| `console.angels4ukraine.de` | MinIO Console | ✅ HTTPS |
+| `metrics.angels4ukraine.de` | Prometheus | ✅ HTTPS |
+| `monitoring.angels4ukraine.de` | Grafana | ✅ HTTPS |
+| `secrets.angels4ukraine.de` | Vault | ✅ HTTPS |
+| `logs.angels4ukraine.de` | Loki | ✅ HTTPS |
+
+---
+
+## 🛠️ **SCHRITT 12: NÜTZLICHE BEFEHLE**
+
+```bash
+# ==================== DOCKER ====================
+# Alle Container neu starten
+docker compose restart
+
+# Nur API neu starten
+docker compose restart api
+
+# Logs aller Container anzeigen
+docker compose logs -f
+
+# Logs eines bestimmten Containers
+docker compose logs -f api
+
+# In Container Shell
+docker compose exec api bash
+
+# ==================== BACKUP ====================
+# Datenbank Backup
+docker compose exec postgres pg_dump -U admin trueangels > backup_$(date +%Y%m%d).sql
+
+# Backup komprimieren
+gzip backup_*.sql
+
+# ==================== MONITORING ====================
+# Container Ressourcen
+docker stats
+
+# Datenbank Verbindung testen
+docker compose exec postgres pg_isready -U admin
+
+# Redis testen
+docker compose exec redis redis-cli ping
+```
+
+---
+
+## 🔄 **SCHRITT 13: AUTOMATISCHE BACKUPS (CRON)**
+
+```bash
+sudo crontab -e
+```
+
+```cron
+# Tägliches Backup um 02:00 Uhr
+0 2 * * * cd /opt/trueangels && docker compose exec -T postgres pg_dump -U admin trueangels > /opt/trueangels/backups/db_$(date +\%Y\%m\%d).sql
+
+# Wöchentlicher Neustart um 04:00 Uhr (Sonntag)
+0 4 * * 0 cd /opt/trueangels && docker compose restart
+
+# Tägliche Log-Rotation
+0 3 * * * find /opt/trueangels/logs -name "*.log" -mtime +30 -delete
+```
+
+---
+
+## 🆘 **SCHRITT 14: FEHLERBEHEBUNG**
+
+### **Container startet nicht**
+```bash
+# Logs anzeigen
+docker compose logs [service_name]
+
+# Container neu bauen
+docker compose build --no-cache [service_name]
+docker compose up -d [service_name]
+```
+
+### **Datenbank Verbindungsproblem**
+```bash
+# PostgreSQL Status
+docker compose exec postgres pg_isready
+
+# Migrationen erneut ausführen
+docker compose exec api alembic upgrade head
+```
+
+### **Traefik erkennt Service nicht**
+```bash
+# Prüfen ob Traefik läuft
+docker ps | grep traefik
+
+# Labels prüfen
+docker inspect trueangels_api | grep -A 10 "Labels"
+```
+
+### **SSL Zertifikat nicht gültig**
+```bash
+# Traefik Logs prüfen
+docker logs traefik --tail 50
+
+# Let's Encrypt Rate Limits beachten
+```
+
+---
+
+## ✅ **FERTIG! DIE TRUEANGELS NGO SUITE v3.0 LÄUFT!**
+
+**Zugangsdaten:**
+- **API:** https://api.angels4ukraine.de/docs
+- **Dashboard:** https://transparenz.angels4ukraine.de
+- **Grafana:** https://monitoring.angels4ukraine.de (admin / [Ihr Passwort])
+- **MinIO Console:** https://console.angels4ukraine.de (minioadmin / [Ihr Passwort])
+
+**Admin Login:**
+- Email: `admin@angels4ukraine.de`
+- Passwort: `Admin123!` (ändern Sie dies nach dem ersten Login!)

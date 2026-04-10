@@ -146,6 +146,7 @@ async def test_financial_report_export(db_session):
 
 # ==================== Property-Based Tests ====================
 
+
 @given(
     amount=st.decimals(min_value=0.01, max_value=100000, places=2),
     year=st.integers(min_value=2020, max_value=2025),

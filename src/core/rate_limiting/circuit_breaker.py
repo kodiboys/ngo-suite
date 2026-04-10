@@ -20,6 +20,12 @@ from src.core.rate_limiting.base import (
 logger = logging.getLogger(__name__)
 
 
+class CircuitBreakerOpenException(Exception):
+    """Raised when circuit breaker is OPEN"""
+
+    pass
+
+
 class CircuitBreaker(CircuitBreakerInterface):
     """
     Circuit Breaker Pattern Implementierung

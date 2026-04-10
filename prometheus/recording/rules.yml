@@ -1,0 +1,84 @@
+# FILE: prometheus/recording/rules.yml
+# PURPOSE: Recording Rules – vorberechnete Metriken für schnellere Dashboards
+# Vorteil: Spart CPU bei häufig genutzten komplexen Ausdrücken
+
+groups:
+  - name: trueangels_kpis
+    interval: 30s
+    rules:
+      # 1) Spendenrate pro Minute (durchschnittlich letzte 5min)
+      - record: trueangels:donation_rate_per_minute
+        expr: rate(trueangels_donation_stats_total_donations[5m])
+
+      # 2) Erfolgsrate der Zahlungen (in Prozent)
+      - record: trueangels:payment_success_rate_percent
+        expr: (trueangels_donation_stats_successful_donations / (trueangels_donation_stats_successful_donations + trueangels_donation_stats_failed_donations)) * 100
+
+      # 3) Durchschnittlicher Spendenbetrag (letzte Stunde)
+      - record: trueangels:avg_donation_amount
+        expr: increase(trueangels_donation_stats_total_amount[1h]) / increase(trueangels_donation_stats_total_donations[1h])
+
+      # 4) Projektfinanzierungsgrad (nur aktive Projekte)
+      - record: trueangels:active_projects_funding_avg
+        expr: avg(trueangels_project_funding_funding_percentage{project_status="active"})
+
+  - name: postgres_aggregates
+    interval: 60s
+    rules:
+      # 1) Gesamtzahl Datenbankverbindungen
+      - record: postgres:total_connections
+        expr: sum(pg_stat_database_numbackends) by (instance)
+
+      # 2) Throughput: Transaktionen pro Sekunde (Summe über alle DBs)
+      - record: postgres:tps
+        expr: sum(rate(pg_stat_database_xact_commit[1m]) + rate(pg_stat_database_xact_rollback[1m]))
+
+      # 3) Cache-Hit-Ratio
+      - record: postgres:cache_hit_ratio
+        expr: (sum(pg_stat_database_blks_hit) / (sum(pg_stat_database_blks_hit) + sum(pg_stat_database_blks_read))) * 100
+
+  - name: blackbox_slos
+    interval: 60s
+    rules:
+      # 1) Verfügbarkeit aller HTTP-Endpunkte (SLI)
+      - record: blackbox:http_availability_ratio_5m
+        expr: avg_over_time(probe_success{job="blackbox_http"}[5m]) * 100
+
+      # 2) Verfügbarkeit kritischer TCP-Ports
+      - record: blackbox:tcp_availability_ratio_5m
+        expr: avg_over_time(probe_success{job="blackbox_tcp"}[5m]) * 100
+
+      # 3) P95-Latenz für HTTP-Checks
+      - record: blackbox:http_latency_seconds_p95
+        expr: histogram_quantile(0.95, sum(rate(probe_duration_seconds_bucket[5m])) by (le, instance))
+
+  - name: application_performance
+    interval: 30s
+    rules:
+      # 1) API-Requestrate
+      - record: api:request_rate_per_second
+        expr: sum(rate(http_requests_total[1m])) by (method, endpoint)
+
+      # 2) API-Fehlerquote (5xx)
+      - record: api:error_5xx_ratio
+        expr: (sum(rate(http_requests_total{status=~"5.."}[1m])) / sum(rate(http_requests_total[1m]))) * 100
+
+      # 3) Celery Task-Erfolgsquote
+      - record: celery:task_success_ratio
+        expr: (sum(rate(celery_task_succeeded[5m])) / (sum(rate(celery_task_succeeded[5m])) + sum(rate(celery_task_failed[5m])))) * 100
+
+      # 4) Redis Cache Hit-Ratio
+      - record: redis:hit_ratio
+        expr: redis_keyspace_hits / (redis_keyspace_hits + redis_keyspace_misses) * 100
+
+  - name: composite_slos
+    interval: 1m
+    rules:
+      # Gesamtverfügbarkeit TrueAngels Plattform (API + DB + externer Zahlungsdienst)
+      - record: trueangels:overall_availability
+        expr: |
+          (
+            avg(probe_success{job="blackbox_http", instance=~".*api.*"}) *
+            avg(pg_up) *
+            avg(probe_success{job="blackbox_http", instance=~".*stripe.*"})
+          ) * 100

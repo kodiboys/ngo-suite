@@ -1,0 +1,176 @@
+# FILE: prometheus/prometheus.yml
+# PROJECT: TrueAngels NGO ENTERPRISE v1.0
+# PURPOSE: Zentrale Prometheus-Konfiguration für Monitoring aller Plattform-Komponenten
+# ENVIRONMENT: Docker Compose (Service-Namen als Targets)
+
+# ==================== GLOBALE EINSTELLUNGEN ====================
+global:
+  scrape_interval: 15s      # Wie oft Metriken gesammelt werden
+  evaluation_interval: 15s  # Wie oft Alert-Regeln ausgewertet werden
+  scrape_timeout: 10s       # Timeout für einzelne Scrapes
+
+  # Externe Labels – werden an jede Metrik angehängt (für multi-Umgebung)
+  external_labels:
+    environment: "production"
+    project: "trueangels"
+    version: "v1.0"
+
+# ==================== ALERTMANAGER ====================
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093   # Service-Name in Docker-Compose
+      # Timeout & Auth (optional)
+      timeout: 10s
+      # basic_auth: {}           # Falls benötigt
+      scheme: http
+
+# ==================== REGEL-DATEIEN (Alerts & Recording Rules) ====================
+rule_files:
+  - "alerts/trueangels_alerts.yml"
+  - "alerts/postgres_alerts.yml"
+  - "alerts/blackbox_alerts.yml"
+  - "recording/rules.yml"
+
+# ==================== SCRAPE CONFIGURATIONS ====================
+scrape_configs:
+
+  # ------------------------------------------------------------
+  # 1) Prometheus selbst (Self-Monitoring)
+  # ------------------------------------------------------------
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # ------------------------------------------------------------
+  # 2) Node Exporter (Host-Metriken – CPU, RAM, Disk, Netzwerk)
+  # ------------------------------------------------------------
+  - job_name: "node"
+    static_configs:
+      - targets:
+          - node-exporter:9100   # Host-Metriken für den Docker-Host
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # ------------------------------------------------------------
+  # 3) PostgreSQL Exporter (Datenbank-Metriken)
+  # ------------------------------------------------------------
+  - job_name: "postgres"
+    static_configs:
+      - targets:
+          - postgres-exporter:9187   # Port aus postgres_exporter.yml
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    # Optional: Basic Auth (falls in postgres_exporter.yml aktiviert)
+    # basic_auth:
+    #   username: "prometheus"
+    #   password: "secret"
+
+  # ------------------------------------------------------------
+  # 4) FastAPI App (direkte Metriken – z.B. via prometheus-client)
+  # ------------------------------------------------------------
+  - job_name: "trueangels_api"
+    static_configs:
+      - targets:
+          - api:8000   # FastAPI Container (Service-Name)
+    scrape_interval: 15s
+    metrics_path: /metrics
+    scheme: http
+
+  # ------------------------------------------------------------
+  # 5) Blackbox Exporter – HTTP Checks (API, Webseite, WP Bridge)
+  # ------------------------------------------------------------
+  - job_name: "blackbox_http"
+    metrics_path: /probe
+    params:
+      module: [http_2xx_api]   # Verwendet Modul aus blackbox.yml
+    static_configs:
+      - targets:
+          - http://api:8000/health          # Health-Endpunkt der API
+          - https://ngo.angels4ukraine.de/transparenz  # Öffentliche Transparenzseite
+          - https://ngo.angels4ukraine.de/wp-json/trueangels/v1/health
+    relabel_configs:
+      # Speichere die Ziel-URL im Label "__param_target"
+      - source_labels: [__address__]
+        target_label: __param_target
+      # Ersetze das instance-Label mit der Ziel-URL (bessere Lesbarkeit)
+      - source_labels: [__param_target]
+        target_label: instance
+      # Leite den Scrape an den blackbox-exporter weiter
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+    scrape_interval: 60s
+    scrape_timeout: 10s
+
+  # ------------------------------------------------------------
+  # 6) Blackbox Exporter – TCP Checks (PostgreSQL, Redis, Wasabi)
+  # ------------------------------------------------------------
+  - job_name: "blackbox_tcp"
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]    # Kann auch tcp_postgres oder tcp_redis sein
+    static_configs:
+      - targets:
+          - postgres:5432
+          - redis:6379
+          - wasabi:443
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+    scrape_interval: 60s
+    scrape_timeout: 5s
+
+  # ------------------------------------------------------------
+  # 7) Blackbox Exporter – ICMP Checks (Basis-Konnektivität)
+  # ------------------------------------------------------------
+  - job_name: "blackbox_icmp"
+    metrics_path: /probe
+    params:
+      module: [icmp_base]
+    static_configs:
+      - targets:
+          - api           # Container-IP (muss von Prometheus aus erreichbar sein)
+          - postgres
+          - redis
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+    scrape_interval: 120s
+    scrape_timeout: 5s
+
+  # ------------------------------------------------------------
+  # 8) Redis Exporter (optional – falls separater Exporter genutzt wird)
+  # ------------------------------------------------------------
+  - job_name: "redis"
+    static_configs:
+      - targets:
+          - redis-exporter:9121   # Falls Redis Exporter läuft
+    scrape_interval: 30s
+
+  # ------------------------------------------------------------
+  # 9) Celery Worker Metriken (wenn Flower oder prometheus-exporter integriert)
+  # ------------------------------------------------------------
+  - job_name: "celery"
+    static_configs:
+      - targets:
+          - celery-worker:8080   # Annahme: Celery-Exporter auf Port 8080
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+# ==================== LABEL LIMITS & PERFORMANCE ====================
+# Optional: Label-Limits für hohe Kardinalität verhindern
+# (aktivieren nur bei sehr großen Umgebungen)
+# global:
+#   query_log_file: /var/log/prometheus/query.log

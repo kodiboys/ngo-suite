@@ -1,0 +1,126 @@
+# FILE: prometheus/alerts/blackbox_alerts.yml
+# PURPOSE: Blackbox-Exporter Alert-Regeln für HTTP, TCP, ICMP
+# TARGET: Blackbox-Probe Metriken (probe_*)
+
+groups:
+  - name: blackbox_http
+    interval: 60s
+    rules:
+      - alert: HTTPEndpointDown
+        expr: probe_success == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: external
+        annotations:
+          summary: "HTTP-Endpunkt nicht erreichbar"
+          description: "{{ $labels.instance }} ist down (HTTP-Status: {{ $labels.probe_http_status_code }}) – Modul: {{ $labels.module }}"
+
+      - alert: HTTPHighLatency
+        expr: probe_duration_seconds > 3
+        for: 5m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "Hohe HTTP-Latenz"
+          description: "Endpunkt {{ $labels.instance }} antwortet in {{ $value }}s (>3s)."
+
+      - alert: HTTPCertificateExpiringSoon
+        expr: (probe_ssl_earliest_cert_expiry - time()) < 86400 * 7
+        for: 1h
+        labels:
+          severity: critical
+          component: security
+        annotations:
+          summary: "SSL-Zertifikat läuft ab"
+          description: "Zertifikat für {{ $labels.instance }} endet in {{ $value | humanizeDuration }}."
+
+      - alert: HTTPInvalidStatusCode
+        expr: probe_http_status_code >= 400 and probe_success == 1
+        for: 1m
+        labels:
+          severity: warning
+          component: application
+        annotations:
+          summary: "HTTP-Statuscode Fehler"
+          description: "Endpunkt {{ $labels.instance }} liefert HTTP {{ $value }} (erwartet 2xx/3xx)."
+
+      - alert: HTTPRedirectLoop
+        expr: probe_http_redirects > 5
+        for: 0m
+        labels:
+          severity: warning
+          component: configuration
+        annotations:
+          summary: "Redirect-Schleife erkannt"
+          description: "{{ $labels.instance }} hat {{ $value }} Redirects – möglicherweise fehlerhafte Konfiguration."
+
+  - name: blackbox_tcp
+    interval: 60s
+    rules:
+      - alert: TCPPortDown
+        expr: probe_success == 0 and probe_ip_protocol == "tcp4"
+        for: 2m
+        labels:
+          severity: critical
+          component: network
+        annotations:
+          summary: "TCP-Port nicht erreichbar"
+          description: "{{ $labels.instance }} (Port {{ $labels.port }}) antwortet nicht. Modul: {{ $labels.module }}"
+
+      - alert: TCPConnectionTimeout
+        expr: probe_duration_seconds > 2 and probe_success == 1
+        for: 5m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "Langsamer TCP-Handshake"
+          description: "Verbindungsaufbau zu {{ $labels.instance }} dauert {{ $value }}s."
+
+  - name: blackbox_icmp
+    interval: 120s
+    rules:
+      - alert: ICMPHostUnreachable
+        expr: probe_success == 0 and probe_ip_protocol == "icmp"
+        for: 3m
+        labels:
+          severity: critical
+          component: network
+        annotations:
+          summary: "Host via ICMP nicht erreichbar"
+          description: "Ping zu {{ $labels.instance }} fehlgeschlagen (Loss: {{ $labels.probe_icmp_loss }}%)"
+
+      - alert: ICMPHighPacketLoss
+        expr: probe_icmp_loss > 20
+        for: 5m
+        labels:
+          severity: warning
+          component: network
+        annotations:
+          summary: "Hoher Paketverlust"
+          description: "Paketverlust zu {{ $labels.instance }} beträgt {{ $value }}% (>20%)."
+
+      - alert: ICMPHighRTT
+        expr: probe_icmp_rtt_seconds > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: performance
+        annotations:
+          summary: "Hohe Round-Trip-Time"
+          description: "RTT zu {{ $labels.instance }} ist {{ $value }}s (>500ms)."
+
+  - name: blackbox_dns
+    interval: 300s
+    rules:
+      - alert: DNSResolutionFailure
+        expr: probe_dns_lookup_time_seconds == 0 and probe_success == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: network
+        annotations:
+          summary: "DNS-Auflösung fehlgeschlagen"
+          description: "Name {{ $labels.instance }} kann nicht aufgelöst werden (Query: {{ $labels.probe_dns_query_name }})"

@@ -1,0 +1,115 @@
+# FILE: grafana/dashboards/compliance.json
+# MODULE: Compliance and Security Monitoring Dashboard
+{
+  "dashboard": {
+    "title": "Compliance & Security",
+    "uid": "compliance-monitoring",
+    "version": 1,
+    "timezone": "browser",
+    "editable": true,
+    "refresh": "1m",
+    "tags": ["compliance", "security", "audit"],
+    "panels": [
+      {
+        "title": "Pending 4-Eyes Approvals",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "four_eyes_pending",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds",
+              "thresholds": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 5, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Money Laundering Alerts (24h)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+        "targets": [
+          {
+            "expr": "increase(money_laundering_alerts[24h])",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds",
+              "thresholds": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 3, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Money Laundering Alerts Trend",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+        "targets": [
+          {
+            "expr": "increase(money_laundering_alerts[1h])",
+            "legendFormat": "Alerts per hour",
+            "refId": "A"
+          },
+          {
+            "expr": "increase(money_laundering_alerts[24h])",
+            "legendFormat": "Alerts per day",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "title": "Circuit Breaker Status",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "circuit_breaker_state",
+            "legendFormat": "{{service}}",
+            "refId": "A"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {},
+              "indexByName": {},
+              "renameByName": {
+                "service": "Service",
+                "Value": "State"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "title": "Rate Limit Hits",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "increase(rate_limit_hits[5m])",
+            "legendFormat": "{{scope}} {{endpoint}}",
+            "refId": "A"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -163,6 +163,7 @@ async def test_full_payment_flow(db_session, redis_client):
 
 # ==================== Property-Based Tests ====================
 
+
 @given(amount=st.decimals(min_value=0.01, max_value=100000, places=2), email=st.emails())
 def test_payment_amount_validation(amount, email):
     """Test: Alle Beträge werden korrekt validiert"""

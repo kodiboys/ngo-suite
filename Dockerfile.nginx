@@ -2,7 +2,7 @@
 # MODULE: Nginx Container für Reverse Proxy & Static Files
 # Version: 3.0.0 - Vollständige Konfiguration mit SSL und Security Headers
 
-FROM nginx:alpine
+FROM nginx:1.26.3-alpine
 
 # Install curl and other utilities for healthcheck
 RUN apk add --no-cache \

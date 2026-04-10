@@ -1,0 +1,148 @@
+# FILE: grafana/ldap.toml
+# MODULE: LDAP Authentication Configuration for Grafana
+# Optional - Nur aktivieren wenn LDAP verwendet wird
+
+# ==================== LDAP Authentication ====================
+# LDAP Konfiguration für Grafana
+# Aktivieren in grafana.ini: [auth.ldap] enabled = true
+
+verbose_logging = false
+
+# ==================== LDAP Servers ====================
+[[servers]]
+# LDAP Server Host
+host = "ldap.example.com"
+port = 389
+
+# Use LDAPS (LDAP over SSL)
+use_ssl = false
+# Start TLS
+start_tls = false
+
+# SSL/TLS settings
+ssl_skip_verify = false
+# root_ca_cert = /path/to/certificate.crt
+# client_cert = /path/to/client.crt
+# client_key = /path/to/client.key
+
+# Search user and password (bind credentials)
+bind_dn = "cn=admin,dc=example,dc=com"
+bind_password = "ldap_admin_password"
+
+# User search configuration
+search_filter = "(uid=%s)"
+search_base_dns = ["dc=example,dc=com"]
+
+# Group search configuration
+group_search_filter = "(&(objectClass=groupOfNames)(member=%s))"
+group_search_base_dns = ["dc=example,dc=com"]
+group_search_filter_user_attribute = "dn"
+group_search_filter_group_attribute = "member"
+
+# User to group mapping
+[[servers.group_mappings]]
+group_dn = "cn=grafana_admin,ou=groups,dc=example,dc=com"
+org_role = "Admin"
+org_id = 1
+
+[[servers.group_mappings]]
+group_dn = "cn=grafana_editor,ou=groups,dc=example,dc=com"
+org_role = "Editor"
+org_id = 1
+
+[[servers.group_mappings]]
+group_dn = "*"
+org_role = "Viewer"
+org_id = 1
+
+# Attribute mapping
+[[servers.attributes]]
+name = "username"
+attribute_name = "uid"
+
+[[servers.attributes]]
+name = "name"
+attribute_name = "cn"
+
+[[servers.attributes]]
+name = "surname"
+attribute_name = "sn"
+
+[[servers.attributes]]
+name = "email"
+attribute_name = "mail"
+
+[[servers.attributes]]
+name = "member_of"
+attribute_name = "memberOf"
+
+# ==================== Multi LDAP Server (optional) ====================
+# [[servers]]
+# host = "ldap2.example.com"
+# port = 389
+# ... weitere Konfigurationen
+
+# ==================== LDAP Synchronization ====================
+[sync]
+# Sync interval in seconds (0 = disabled)
+sync_interval = 3600
+
+# Allow new user signups via LDAP
+allow_sign_up = true
+
+# ==================== LDAP Example Configurations ====================
+
+# ----- OpenLDAP Beispiel -----
+# [[servers]]
+# host = "openldap.example.com"
+# port = 389
+# bind_dn = "cn=admin,dc=company,dc=com"
+# bind_password = "password"
+# search_filter = "(uid=%s)"
+# search_base_dns = ["ou=people,dc=company,dc=com"]
+# 
+# [[servers.group_mappings]]
+# group_dn = "cn=admins,ou=groups,dc=company,dc=com"
+# org_role = "Admin"
+# 
+# [[servers.group_mappings]]
+# group_dn = "cn=users,ou=groups,dc=company,dc=com"
+# org_role = "Viewer"
+
+# ----- Microsoft Active Directory Beispiel -----
+# [[servers]]
+# host = "ad.example.com"
+# port = 389
+# bind_dn = "CN=Service Account,CN=Users,DC=example,DC=com"
+# bind_password = "password"
+# search_filter = "(sAMAccountName=%s)"
+# search_base_dns = ["DC=example,DC=com"]
+# 
+# [[servers.group_mappings]]
+# group_dn = "CN=GrafanaAdmins,OU=Groups,DC=example,DC=com"
+# org_role = "Admin"
+# 
+# [[servers.group_mappings]]
+# group_dn = "CN=GrafanaEditors,OU=Groups,DC=example,DC=com"
+# org_role = "Editor"
+# 
+# [[servers.group_mappings]]
+# group_dn = "CN=Domain Users,CN=Users,DC=example,DC=com"
+# org_role = "Viewer"
+
+# ----- FreeIPA Beispiel -----
+# [[servers]]
+# host = "ipa.example.com"
+# port = 389
+# bind_dn = "uid=admin,cn=users,cn=accounts,dc=example,dc=com"
+# bind_password = "password"
+# search_filter = "(uid=%s)"
+# search_base_dns = ["cn=users,cn=accounts,dc=example,dc=com"]
+# 
+# [[servers.group_mappings]]
+# group_dn = "cn=ipausers,cn=groups,cn=accounts,dc=example,dc=com"
+# org_role = "Viewer"
+# 
+# [[servers.group_mappings]]
+# group_dn = "cn=admins,cn=groups,cn=accounts,dc=example,dc=com"
+# org_role = "Admin"

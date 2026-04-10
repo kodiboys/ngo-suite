@@ -1,0 +1,156 @@
+# FILE: grafana/dashboards/business_metrics.json
+# MODULE: Business Metrics Dashboard for Donations & Projects
+{
+  "dashboard": {
+    "title": "Business Metrics",
+    "uid": "business-metrics",
+    "version": 1,
+    "timezone": "browser",
+    "editable": true,
+    "refresh": "1m",
+    "time": {
+      "from": "now-30d",
+      "to": "now"
+    },
+    "tags": ["business", "donations", "projects"],
+    "panels": [
+      {
+        "title": "Total Donations (Today)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "increase(donations_total[24h])",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "title": "Total Donation Amount (Today)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 3, "y": 0},
+        "targets": [
+          {
+            "expr": "increase(donations_amount_total[24h])",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyEUR"
+          }
+        }
+      },
+      {
+        "title": "Active Projects",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "projects_active",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "title": "Donation Success Rate",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 3, "x": 9, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(rate(payment_success_total[1h])) / (sum(rate(payment_success_total[1h])) + sum(rate(payment_failure_total[1h]))) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "title": "Donations Over Time",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "targets": [
+          {
+            "expr": "increase(donations_total[1h])",
+            "legendFormat": "Donations per hour",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "title": "Donation Amount Over Time",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "targets": [
+          {
+            "expr": "increase(donations_amount_total[1h])",
+            "legendFormat": "Amount per hour",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyEUR"
+          }
+        }
+      },
+      {
+        "title": "Donations by Payment Provider",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 6, "x": 0, "y": 12},
+        "targets": [
+          {
+            "expr": "sum by(payment_provider) (increase(payment_success_total[7d]))",
+            "legendFormat": "{{payment_provider}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "title": "Project Funding Progress",
+        "type": "bargauge",
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 12},
+        "targets": [
+          {
+            "expr": "trueangels_project_stats",
+            "legendFormat": "{{project_name}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        }
+      },
+      {
+        "title": "Recent Donations",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "targets": [
+          {
+            "expr": "trueangels_donation_stats",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ]
+      }
+    ]
+  }
+}

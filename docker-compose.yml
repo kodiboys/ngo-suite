@@ -7,8 +7,6 @@
 # CertResolver: http_resolver (angepasst an existierende Traefik Config)
 # Email: anto@angels4ukraine.net
 
-version: '3.8'
-
 services:
   # ==================== Database ====================
   postgres:
@@ -114,7 +112,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
-    container_name: trueangels_api
+#    container_name: trueangels_api
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${DB_USER:-admin}:${DB_PASSWORD:-change_me}@postgres:5432/${DB_NAME:-trueangels}
@@ -145,7 +143,7 @@ services:
     networks:
       - proxy
     deploy:
-      replicas: 2
+      replicas: 2 #ngo-suite-api-1, ngo-suite-api-2
       resources:
         limits:
           cpus: '2'
@@ -179,7 +177,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.celery
-    container_name: trueangels_celery
+#    container_name:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${DB_USER:-admin}:${DB_PASSWORD:-change_me}@postgres:5432/${DB_NAME:-trueangels}
@@ -202,7 +200,7 @@ services:
     networks:
       - proxy
     deploy:
-      replicas: 2
+      replicas: 2 # celery_worker_1, celery_worker_2
       resources:
         limits:
           cpus: '2'
@@ -270,7 +268,7 @@ services:
 
   # ==================== HashiCorp Vault (Secrets) ====================
   vault:
-    image: vault:1.13
+    image: hashicorp/vault:1.21.4
     container_name: trueangels_vault
     restart: unless-stopped
     cap_add:
@@ -336,7 +334,7 @@ services:
 
   # ==================== Loki (Log Aggregation) ====================
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.1.1
     container_name: trueangels_loki
     restart: unless-stopped
     command: -config.file=/etc/loki/local-config.yaml
@@ -351,7 +349,7 @@ services:
 
   # ==================== Promtail (Log Collector) ====================
   promtail:
-    image: grafana/promtail:latest
+    image: grafana/promtail:3.6.10
     container_name: trueangels_promtail
     restart: unless-stopped
     volumes:

@@ -1,17 +1,17 @@
-# FILE: pyproject.toml
-# MODULE: TrueAngels NGO Suite v3.0.0
-# Poetry 2.1.2 - Vollständige Konfiguration für Ukraine-Hilfe
-
 [tool.poetry]
 name = "trueangels-ngo-suite"
 version = "3.0.0"
 description = "Enterprise NGO Plattform für Transparenz, Spendenmanagement und Ukraine-Hilfe"
+[build-system]
+requires = ["poetry-core>=1.9.0,<2.0.0"]
+build-backend = "poetry.core.masonry.api"
 authors = ["TrueAngels e.V. <anto@angels4ukraine.net>"]
 license = "MIT"
 readme = "README.md"
 homepage = "https://angels4ukraine.de"
 repository = "https://github.com/trueangels/ngo-suite"
 documentation = "https://docs.angels4ukraine.de"
+package-mode = false
 keywords = [
     "ngo",
     "donation",
@@ -113,10 +113,6 @@ trueangels-celery = "celery:main"
 trueangels-streamlit = "streamlit:run"
 trueangels-backup = "scripts.backup:main"
 trueangels-merkle = "src.core.compliance.merkle:daily_merkle_job"
-
-[build-system]
-requires = ["poetry-core>=1.9.0,<2.0.0"]
-build-backend = "poetry.core.masonry.api"
 
 # ==================== Black ====================
 [tool.black]

@@ -1,0 +1,823 @@
+# FILE: streamlit_app.py
+# MODULE: Streamlit Main Application für TrueAngels NGO Suite v3.0.0
+# Transparenz-Dashboard mit modernem UI, Dark Mode, PWA Support
+
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any, List
+import requests
+import json
+import hashlib
+import hmac
+
+from streamlit_option_menu import option_menu
+from streamlit_extras.colored_header import colored_header
+from streamlit_extras.metric_cards import style_metric_cards
+from streamlit_extras.stylable_container import stylable_container
+
+# ==================== Page Configuration ====================
+
+st.set_page_config(
+    page_title="TrueAngels NGO Suite v3.0",
+    page_icon="🤝",
+    layout="wide",
+    initial_sidebar_state="expanded",
+    menu_items={
+        "Get Help": "https://angels4ukraine.de/help",
+        "Report a bug": "https://angels4ukraine.de/bug",
+        "About": "# TrueAngels NGO Suite v3.0\nEnterprise Plattform für Transparenz & Ukraine-Hilfe",
+    },
+)
+
+
+# ==================== Custom CSS (RGB Farben) ====================
+
+
+def load_custom_css():
+    """Lädt benutzerdefiniertes CSS mit RGB Farben"""
+
+    css = """
+    <style>
+        /* ==================== CSS Variables (RGB) ==================== */
+        :root {
+            --primary: rgb(45, 106, 79);
+            --primary-dark: rgb(27, 67, 50);
+            --primary-light: rgb(82, 183, 136);
+            --secondary: rgb(29, 53, 86);
+            --success: rgb(81, 207, 102);
+            --warning: rgb(255, 183, 3);
+            --danger: rgb(230, 57, 70);
+            --gray-100: rgb(248, 249, 250);
+            --gray-200: rgb(233, 236, 239);
+            --gray-300: rgb(222, 226, 230);
+            --gray-600: rgb(108, 117, 125);
+            --gray-800: rgb(52, 58, 64);
+            --border-radius: 12px;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+        
+        /* Dark Mode */
+        [data-theme="dark"] {
+            --gray-100: rgb(26, 26, 46);
+            --gray-200: rgb(22, 33, 62);
+            --gray-300: rgb(15, 52, 96);
+            --gray-600: rgb(160, 160, 160);
+            --gray-800: rgb(232, 232, 232);
+        }
+        
+        /* Main Container */
+        .main .block-container {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+            max-width: 1400px;
+        }
+        
+        /* KPI Cards */
+        .metric-card {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            border-radius: var(--border-radius);
+            padding: 1.25rem;
+            color: white;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 0.5rem 0;
+        }
+        
+        .metric-label {
+            font-size: 0.875rem;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .metric-change {
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+            opacity: 0.8;
+        }
+        
+        .metric-change.positive {
+            color: var(--success);
+        }
+        
+        .metric-change.negative {
+            color: var(--danger);
+        }
+        
+        /* Progress Bar */
+        .progress-container {
+            margin: 1rem 0;
+        }
+        
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.25rem;
+            font-size: 0.875rem;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background-color: var(--gray-200);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background-color: var(--primary);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        
+        /* Cards */
+        .card {
+            background-color: white;
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--gray-800);
+        }
+        
+        /* Dark Mode Card */
+        [data-theme="dark"] .card {
+            background-color: var(--gray-200);
+            color: var(--gray-800);
+        }
+        
+        /* Donor Hash */
+        .donor-hash {
+            font-family: monospace;
+            font-size: 0.875rem;
+            background-color: var(--gray-100);
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            border-radius: 20px;
+        }
+        
+        .badge-success {
+            background-color: var(--success);
+            color: white;
+        }
+        
+        .badge-warning {
+            background-color: var(--warning);
+            color: var(--gray-800);
+        }
+        
+        .badge-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+        
+        .badge-info {
+            background-color: var(--primary-light);
+            color: white;
+        }
+        
+        /* Buttons */
+        .stButton > button {
+            background-color: var(--primary);
+            color: white;
+            border-radius: 8px;
+            border: none;
+            padding: 0.5rem 1rem;
+            font-weight: 500;
+            transition: var(--transition);
+        }
+        
+        .stButton > button:hover {
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+        
+        /* Tables */
+        .dataframe {
+            border-radius: var(--border-radius);
+            overflow: hidden;
+        }
+        
+        .dataframe thead tr th {
+            background-color: var(--primary);
+            color: white;
+            padding: 0.75rem;
+        }
+        
+        .dataframe tbody tr:hover {
+            background-color: var(--gray-100);
+        }
+        
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        /* Loading Spinner */
+        .spinner {
+            border: 3px solid var(--gray-200);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 2rem auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Merkle Badge */
+        .merkle-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            background-color: var(--gray-100);
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-family: monospace;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .metric-value {
+                font-size: 1.5rem;
+            }
+            .card {
+                padding: 1rem;
+            }
+        }
+    </style>
+    """
+
+    st.markdown(css, unsafe_allow_html=True)
+
+
+# ==================== Dark Mode Toggle ====================
+
+
+def setup_dark_mode():
+    """Initialisiert Dark Mode Toggle"""
+
+    dark_mode_js = """
+    <script>
+        const darkMode = localStorage.getItem('darkMode');
+        if (darkMode === 'enabled') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+        
+        function toggleDarkMode() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            if (currentTheme === 'dark') {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.setItem('darkMode', 'disabled');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('darkMode', 'enabled');
+            }
+        }
+    </script>
+    """
+    st.markdown(dark_mode_js, unsafe_allow_html=True)
+
+
+# ==================== Session State ====================
+
+
+def init_session_state():
+    """Initialisiert Session State Variablen"""
+
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+    if "dark_mode" not in st.session_state:
+        st.session_state.dark_mode = False
+    if "selected_year" not in st.session_state:
+        st.session_state.selected_year = datetime.now().year
+    if "selected_project" not in st.session_state:
+        st.session_state.selected_project = None
+    if "transparency_data" not in st.session_state:
+        st.session_state.transparency_data = None
+    if "last_updated" not in st.session_state:
+        st.session_state.last_updated = None
+
+
+# ==================== API Calls ====================
+
+
+@st.cache_data(ttl=300)
+def fetch_transparency_data(year: int, project: str = None) -> Optional[Dict]:
+    """
+    Holt Transparenz-Daten von der API
+    Mit Caching für 5 Minuten
+    """
+    api_url = st.secrets.get("API_URL", "https://api.angels4ukraine.de")
+    endpoint = f"{api_url}/api/v1/transparenz"
+
+    params = {"jahr": year}
+    if project:
+        params["projekt"] = project
+
+    try:
+        response = requests.get(endpoint, params=params, timeout=30)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            st.error(f"API Error: {response.status_code}")
+            return None
+    except Exception as e:
+        st.error(f"Connection Error: {e}")
+        return None
+
+
+@st.cache_data(ttl=3600)
+def fetch_projects() -> List[Dict]:
+    """Holt Projekt-Liste von der API"""
+    api_url = st.secrets.get("API_URL", "https://api.angels4ukraine.de")
+    endpoint = f"{api_url}/api/v1/transparenz/projects"
+
+    try:
+        response = requests.get(endpoint, timeout=30)
+        if response.status_code == 200:
+            return response.json()
+        return []
+    except Exception:
+        return []
+
+
+# ==================== Helper Functions ====================
+
+
+def format_currency(amount: float) -> str:
+    """Formatiert Währungsbeträge"""
+    return f"€{amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def format_percentage(value: float) -> str:
+    """Formatiert Prozentwerte"""
+    return f"{value:.1f}%"
+
+
+def generate_donor_hash(email_hash: str) -> str:
+    """Generiert lesbaren Spender-Hash für Transparenzseite"""
+    # In Production: Aus API erhalten
+    return f"SPENDER-{email_hash[:6].upper()}"
+
+
+# ==================== Dashboard Components ====================
+
+
+def render_kpi_cards(data: Dict):
+    """Rendert KPI Cards"""
+
+    metrics = data.get("metrics", {})
+
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+
+    with col1:
+        st.markdown(
+            f"""
+            <div class="metric-card">
+                <div class="metric-label">💰 Gesamtspenden</div>
+                <div class="metric-value">{format_currency(metrics.get('total_incoming', 0))}</div>
+            </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    with col2:
+        st.markdown(
+            f"""
+            <div class="metric-card">
+                <div class="metric-label">📊 Gesamtausgaben</div>
+                <div class="metric-value">{format_currency(metrics.get('total_outgoing', 0))}</div>
+            </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    with col3:
+        st.markdown(
+            f"""
+            <div class="metric-card">
+                <div class="metric-label">🎯 Fortschritt</div>
+                <div class="metric-value">{format_percentage(metrics.get('project_progress', 0))}</div>
+            </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    with col4:
+        st.markdown(
+            f"""
+            <div class="metric-card">
+                <div class="metric-label">👥 Spender</div>
+                <div class="metric-value">{metrics.get('donor_count', 0):,}</div>
+            </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    with col5:
+        st.markdown(
+            f"""
+            <div class="metric-card">
+                <div class="metric-label">💝 Spenden</div>
+                <div class="metric-value">{metrics.get('donation_count', 0):,}</div>
+            </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    with col6:
+        st.markdown(
+            f"""
+            <div class="metric-card">
+                <div class="metric-label">⭐ Durchschnitt</div>
+                <div class="metric-value">{format_currency(metrics.get('avg_donation', 0))}</div>
+            </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+
+def render_timeline_chart(data: Dict):
+    """Rendert Timeline Chart mit Plotly"""
+
+    timeline = data.get("timeline", [])
+
+    if not timeline:
+        st.info("Keine Zeitreihen-Daten verfügbar")
+        return
+
+    df = pd.DataFrame(timeline)
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    # Eingänge (Balken)
+    fig.add_trace(
+        go.Bar(
+            name="Eingänge (€)",
+            x=df["month"],
+            y=df["incoming"],
+            marker_color="rgb(45, 106, 79)",
+            opacity=0.8,
+            text=df["incoming"].apply(lambda x: format_currency(x)),
+            textposition="outside",
+        ),
+        secondary_y=False,
+    )
+
+    # Ausgaben (Linie)
+    fig.add_trace(
+        go.Scatter(
+            name="Ausgaben (€)",
+            x=df["month"],
+            y=df["outgoing"],
+            mode="lines+markers",
+            line=dict(color="rgb(230, 57, 70)", width=3),
+            marker=dict(size=8),
+            text=df["outgoing"].apply(lambda x: format_currency(x)),
+            textposition="top center",
+        ),
+        secondary_y=False,
+    )
+
+    # Kumulierte Summe (Linie, sekundäre Y-Achse)
+    fig.add_trace(
+        go.Scatter(
+            name="Kumuliert (€)",
+            x=df["month"],
+            y=df["cumulative"],
+            mode="lines+markers",
+            line=dict(color="rgb(29, 53, 86)", width=3, dash="dot"),
+            marker=dict(size=8),
+            text=df["cumulative"].apply(lambda x: format_currency(x)),
+            textposition="top center",
+        ),
+        secondary_y=True,
+    )
+
+    fig.update_layout(
+        title="📈 Entwicklung der Spenden",
+        template="plotly_white",
+        height=450,
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+
+    fig.update_xaxes(title_text="Monat", tickangle=45)
+    fig.update_yaxes(title_text="Betrag (€)", secondary_y=False)
+    fig.update_yaxes(title_text="Kumuliert (€)", secondary_y=True)
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def render_donations_table(data: Dict):
+    """Rendert Spendentabelle mit pseudonymisierten Spendern"""
+
+    donations = data.get("donations", [])
+    merkle_root = data.get("merkle_root", "pending")
+
+    if not donations:
+        st.info("Keine Spenden-Daten verfügbar")
+        return
+
+    # Merkle-Root Badge
+    st.markdown(
+        f"""
+        <div class="merkle-badge">
+            🔒 Merkle-Root: <code>{merkle_root[:20]}...</code>
+            <span class="tooltip" title="Manipulationssicherer Hash der Transparenz-Daten">ⓘ</span>
+        </div>
+        <br>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    # Tabelle
+    df = pd.DataFrame(donations)
+    df.columns = ["Spender", "Datum", "Projekt", "Betrag"]
+
+    # Betrag formatieren
+    df["Betrag"] = df["Betrag"].apply(lambda x: format_currency(x))
+
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Spender": st.column_config.TextColumn("Spender", width="small"),
+            "Datum": st.column_config.TextColumn("Datum", width="small"),
+            "Projekt": st.column_config.TextColumn("Projekt", width="medium"),
+            "Betrag": st.column_config.TextColumn("Betrag", width="small"),
+        },
+    )
+
+
+def render_projects_overview(projects: List[Dict]):
+    """Rendert Projekt-Übersicht als Cards"""
+
+    if not projects:
+        st.info("Keine Projekte verfügbar")
+        return
+
+    st.markdown('<div class="card-grid">', unsafe_allow_html=True)
+
+    cols = st.columns(2)
+
+    for idx, project in enumerate(projects):
+        with cols[idx % 2]:
+            progress = project.get("progress_percent", 0)
+
+            st.markdown(
+                f"""
+                <div class="card" style="height: 100%;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0; font-size: 1.2rem;">🏗️ {project.get('name', 'Projekt')}</h3>
+                        <span class="badge badge-success">Aktiv</span>
+                    </div>
+                    <p style="color: var(--gray-600); margin-bottom: 1rem;">{project.get('description', '')[:100]}...</p>
+                    <div class="progress-container">
+                        <div class="progress-label">
+                            <span>Fortschritt</span>
+                            <span>{progress:.1f}%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {progress}%;"></div>
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 1rem;">
+                        <div>
+                            <div style="font-size: 0.7rem; color: var(--gray-600);">Budget</div>
+                            <div style="font-weight: 600;">{format_currency(project.get('budget_total', 0))}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.7rem; color: var(--gray-600);">Spenden</div>
+                            <div style="font-weight: 600;">{format_currency(project.get('donations_total', 0))}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.7rem; color: var(--gray-600);">Spender</div>
+                            <div style="font-weight: 600;">{project.get('donor_count', 0):,}</div>
+                        </div>
+                    </div>
+                    <button class="stButton" style="width: 100%; margin-top: 1rem;">
+                        <button style="width: 100%;">💝 Jetzt spenden</button>
+                    </button>
+                </div>
+            """,
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_filter_sidebar():
+    """Rendert Filter in der Sidebar"""
+
+    with st.sidebar:
+        st.markdown("### 🔍 Filter")
+
+        # Jahr Filter
+        years = [2023, 2024, 2025, 2026]
+        selected_year = st.selectbox(
+            "📅 Jahr",
+            options=years,
+            index=years.index(st.session_state.selected_year)
+            if st.session_state.selected_year in years
+            else 0,
+        )
+        st.session_state.selected_year = selected_year
+
+        # Projekt Filter
+        projects = fetch_projects()
+        project_names = ["Alle"] + [p.get("name", "") for p in projects]
+        selected_project_name = st.selectbox("🏗️ Projekt", options=project_names)
+
+        if selected_project_name == "Alle":
+            selected_project = None
+        else:
+            selected_project = selected_project_name
+
+        st.session_state.selected_project = selected_project
+
+        st.divider()
+
+        # Dark Mode Toggle
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown("🌙 Dark Mode")
+        with col2:
+            dark_mode = st.toggle("", value=st.session_state.dark_mode)
+            if dark_mode != st.session_state.dark_mode:
+                st.session_state.dark_mode = dark_mode
+                st.rerun()
+
+        st.divider()
+
+        # Info
+        st.markdown(
+            """
+            ### ℹ️ Info
+            **Letzte Aktualisierung**  
+            {}  
+            
+            **Datenquelle**  
+            Transparenz-API v3.0
+        """.format(st.session_state.last_updated or "Noch nicht geladen")
+        )
+
+        return selected_year, selected_project
+
+
+# ==================== Main App ====================
+
+
+def main():
+    """Main Application Entry Point"""
+
+    # Initialisierung
+    load_custom_css()
+    setup_dark_mode()
+    init_session_state()
+
+    # Dark Mode anwenden
+    if st.session_state.dark_mode:
+        st.markdown(
+            '<script>document.documentElement.setAttribute("data-theme", "dark");</script>',
+            unsafe_allow_html=True,
+        )
+
+    # Header
+    st.markdown(
+        '<h1 class="fade-in" style="text-align: center; color: rgb(45, 106, 79);">🤝 TrueAngels NGO Suite</h1>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<p style="text-align: center; color: var(--gray-600); margin-bottom: 2rem;">Transparenz für Ihre Spenden | Ukraine-Hilfe</p>',
+        unsafe_allow_html=True,
+    )
+
+    # Sidebar Filter
+    selected_year, selected_project = render_filter_sidebar()
+
+    # Daten laden
+    with st.spinner("Lade Transparenz-Daten..."):
+        data = fetch_transparency_data(selected_year, selected_project)
+        if data:
+            st.session_state.transparency_data = data
+            st.session_state.last_updated = datetime.now().strftime("%d.%m.%Y %H:%M")
+
+    if not st.session_state.transparency_data:
+        st.error("❌ Keine Daten verfügbar. Bitte versuchen Sie es später erneut.")
+        return
+
+    data = st.session_state.transparency_data
+
+    # Tabs
+    tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🏗️ Projekte", "ℹ️ Über"])
+
+    with tab1:
+        # KPI Cards
+        render_kpi_cards(data)
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Timeline Chart
+        render_timeline_chart(data)
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Spendentabelle
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown("### 📋 Letzte Spenden")
+        render_donations_table(data)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with tab2:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown("### 🏗️ Unsere Projekte")
+        projects = fetch_projects()
+        render_projects_overview(projects)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with tab3:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown(
+            """
+            ### ℹ️ Über TrueAngels NGO Suite v3.0
+            
+            **Transparenz ist unsere Mission**
+            
+            Diese Plattform ermöglicht eine vollständige Transparenz über 
+            eingehende Spenden und deren Verwendung in unseren Projekten.
+            
+            #### 🔒 Manipulationssichere Transparenz
+            - Jede Spende wird mit einem Merkle-Tree-Hash gesichert
+            - Die Daten sind manipulationssicher und revisionssicher (GoBD)
+            - Spender werden pseudonymisiert (z.B. SPENDER-A1B2C3)
+            
+            #### 📊 Datenaktualisierung
+            - Die Daten werden täglich aktualisiert
+            - Letzte Aktualisierung: {}
+            
+            #### 📞 Kontakt
+            - E-Mail: info@trueangels.de
+            - Web: https://angels4ukraine.de
+        """.format(st.session_state.last_updated or "Noch nicht geladen")
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Footer
+    st.markdown("---")
+    st.markdown(
+        '<p style="text-align: center; color: var(--gray-600); font-size: 0.75rem;">'
+        "© 2024 TrueAngels e.V. | Transparenz nach §10b EStG | GoBD-konform"
+        "</p>",
+        unsafe_allow_html=True,
+    )
+
+
+if __name__ == "__main__":
+    main()

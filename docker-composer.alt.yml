@@ -1,0 +1,422 @@
+# FILE: docker-compose.yml
+# MODULE: Production Docker Compose mit allen Services (v3.0)
+# Zero-Downtime Deployment, Healthchecks, Resource Limits
+# Erweitert um: MinIO, Transparenz-Services, Need-Fulfillment
+# Domain: angels4ukraine.de
+# Netzwerk: -proxy (existierendes Traefik Netzwerk)
+# CertResolver: http_resolver (angepasst an existierende Traefik Config)
+# Email: anto@angels4ukraine.net
+
+services:
+  # ==================== Database ====================
+  postgres:
+    image: postgres:16-alpine
+    container_name: trueangels_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-trueangels}
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backups/wal:/var/lib/postgresql/wal_archive
+    command: >
+      postgres
+      -c shared_preload_libraries='pg_stat_statements'
+      -c pg_stat_statements.track=all
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c work_mem=16MB
+      -c archive_mode=on
+      -c archive_command='test ! -f /var/lib/postgresql/wal_archive/%f && cp %p /var/lib/postgresql/wal_archive/%f'
+      -c wal_level=replica
+      -c max_wal_senders=3
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d ${DB_NAME:-trueangels}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    labels:
+      - "traefik.enable=false"
+
+  # ==================== Redis ====================
+  redis:
+    image: redis:7-alpine
+    container_name: trueangels_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_pass}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    networks:
+      - proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    labels:
+      - "traefik.enable=false"
+
+  # ==================== MinIO (S3-compatible Storage) ====================
+  minio:
+    image: minio/minio:latest
+    container_name: trueangels_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.minio.rule=Host(`storage.angels4ukraine.de`)"
+      - "traefik.http.services.minio.loadbalancer.server.port=9000"
+      - "traefik.http.routers.minio.tls.certresolver=http_resolver"
+      - "traefik.http.routers.minio-console.rule=Host(`console.angels4ukraine.de`)"
+      - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
+      - "traefik.http.routers.minio-console.tls.certresolver=http_resolver"
+
+  # ==================== API Backend ====================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+#    container_name: trueangels_api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-admin}:${DB_PASSWORD:-change_me}@postgres:5432/${DB_NAME:-trueangels}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_pass}@redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      VAULT_ADDR: http://vault:8200
+      SECRET_KEY: ${SECRET_KEY}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      TRANSPARENCY_SALT: ${TRANSPARENCY_SALT:-trueangels_salt_2024}
+      API_DOMAIN: api.angels4ukraine.de
+      FRONTEND_DOMAIN: angels4ukraine.de
+      TRANSPARENCY_DOMAIN: transparenz.angels4ukraine.de
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - proxy
+    deploy:
+      replicas: 2 #ngo-suite-api-1, ngo-suite-api-2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1.5G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        delay: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`api.angels4ukraine.de`)"
+      - "traefik.http.services.api.loadbalancer.server.port=8000"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=http_resolver"
+      - "traefik.http.routers.api.middlewares=rate-limit@docker,compress@docker,cors@docker"
+      - "traefik.http.middlewares.rate-limit.ratelimit.average=100"
+      - "traefik.http.middlewares.rate-limit.ratelimit.burst=50"
+      - "traefik.http.middlewares.compress.compress=true"
+      - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS"
+      - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=*"
+      - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=https://angels4ukraine.de,https://www.angels4ukraine.de,https://transparenz.angels4ukraine.de"
+
+  # ==================== Celery Worker ====================
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+#    container_name:
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-admin}:${DB_PASSWORD:-change_me}@postgres:5432/${DB_NAME:-trueangels}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_pass}@redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "celery", "-A", "src.core.events.event_bus", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - proxy
+    deploy:
+      replicas: 2 # celery_worker_1, celery_worker_2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1.5G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    labels:
+      - "traefik.enable=false"
+
+  # ==================== Celery Beat (Scheduler) ====================
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    container_name: trueangels_celery_beat
+    restart: unless-stopped
+    command: celery -A src.core.events.event_bus beat --loglevel=info
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-admin}:${DB_PASSWORD:-change_me}@postgres:5432/${DB_NAME:-trueangels}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_pass}@redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=false"
+
+  # ==================== Streamlit GUI (Transparenz Dashboard) ====================
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: trueangels_streamlit
+    restart: unless-stopped
+    environment:
+      API_URL: https://api.angels4ukraine.de
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_pass}@redis:6379
+      TRANSPARENCY_SALT: ${TRANSPARENCY_SALT:-trueangels_salt_2024}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.streamlit.rule=Host(`transparenz.angels4ukraine.de`)"
+      - "traefik.http.services.streamlit.loadbalancer.server.port=8501"
+      - "traefik.http.routers.streamlit.entrypoints=websecure"
+      - "traefik.http.routers.streamlit.tls.certresolver=http_resolver"
+
+  # ==================== HashiCorp Vault (Secrets) ====================
+  vault:
+    image: hashicorp/vault:1.21.4
+    container_name: trueangels_vault
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_TOKEN:-vault_token}
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    volumes:
+      - vault_data:/vault/data
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vault.rule=Host(`secrets.angels4ukraine.de`)"
+      - "traefik.http.services.vault.loadbalancer.server.port=8200"
+      - "traefik.http.routers.vault.entrypoints=websecure"
+      - "traefik.http.routers.vault.tls.certresolver=http_resolver"
+
+  # ==================== Prometheus (Monitoring) ====================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: trueangels_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`metrics.angels4ukraine.de`)"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=http_resolver"
+
+  # ==================== Grafana (Visualization) ====================
+  grafana:
+      image: grafana/grafana:12.4.2  # Empfohlen: Pinne Version statt latest
+      container_name: trueangels_grafana
+      restart: unless-stopped
+      environment:
+        GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+        # DEPRECATED entfernt: GF_INSTALL_PLUGINS 
+        # Das Pie-Chart-Panel ist seit Grafana 5.x nativ integriert (nicht mehr nötig)
+        GF_SERVER_ROOT_URL: https://monitoring.angels4ukraine.de
+      volumes:
+        - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+        - ./grafana/datasources:/etc/grafana/provisioning/datasources
+        - grafana_data:/var/lib/grafana
+      depends_on:
+        - prometheus
+      networks:
+        - proxy
+      labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`monitoring.angels4ukraine.de`)"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=http_resolver"
+
+  # ==================== Loki (Log Aggregation) ====================
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: trueangels_loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.loki.rule=Host(`logs.angels4ukraine.de`)"
+      - "traefik.http.services.loki.loadbalancer.server.port=3100"
+      - "traefik.http.routers.loki.entrypoints=websecure"
+      - "traefik.http.routers.loki.tls.certresolver=http_resolver"
+
+  # ==================== Promtail (Log Collector) ====================
+  promtail:
+    image: grafana/promtail:3.6.10
+    container_name: trueangels_promtail
+    restart: unless-stopped
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./logs:/app/logs:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=false"
+
+  # ==================== Postgres Exporter (Metrics) ====================
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: trueangels_postgres_exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${DB_USER:-admin}:${DB_PASSWORD:-change_me}@postgres:5432/${DB_NAME:-trueangels}?sslmode=disable"
+    depends_on:
+      - postgres
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=false"
+
+  # ==================== Redis Exporter (Metrics) ====================
+  redis_exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: trueangels_redis_exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_pass}
+    depends_on:
+      - redis
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=false"
+
+
+# ==================== Networks ====================
+networks:
+  proxy:
+    external: true
+    name: proxy
+
+
+# ==================== Volumes ====================
+volumes:
+  postgres_data:
+    driver: local
+    name: trueangels_postgres_data
+  redis_data:
+    driver: local
+    name: trueangels_redis_data
+  vault_data:
+    driver: local
+    name: trueangels_vault_data
+  prometheus_data:
+    driver: local
+    name: trueangels_prometheus_data
+  grafana_data:
+    driver: local
+    name: trueangels_grafana_data
+  minio_data:
+    driver: local
+    name: trueangels_minio_data

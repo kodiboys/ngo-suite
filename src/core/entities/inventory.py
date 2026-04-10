@@ -591,7 +591,8 @@ class PackingListResponse(BaseModel):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        # orm_mode = True      # Pydantic V1 (veraltet)
+        from_attributes = True  # Pydantic V2 (korrekt)
 
 
 class NeedFulfillmentRequest(BaseModel):

@@ -1,0 +1,109 @@
+# FILE: prometheus/blackbox.yml
+# MODULE: Blackbox Exporter – TrueAngels NGO ENTERPRISE v1.0
+# Zweck: Überwacht externe Endpunkte (HTTP, TCP, ICMP) für Verfügbarkeit
+# Verwendung: Wird vom blackbox-exporter Container geladen
+
+modules:
+  # ==================== HTTP MODULES ====================
+  # 1) Haupt-API (FastAPI) – erwartet HTTP 200
+  http_2xx_api:
+    prober: http
+    timeout: 5s
+    http:
+      method: GET
+      valid_http_versions: ["HTTP/1.1", "HTTP/2"]
+      valid_status_codes: [200]
+      follow_redirects: true
+      fail_if_ssl: false
+      tls_config:
+        insecure_skip_verify: false   # In Produktion echte Zertifikate prüfen
+
+  # 2) Transparenzseite (öffentlich) – erwartet HTTP 200 oder 304
+  http_transparency:
+    prober: http
+    timeout: 8s
+    http:
+      method: GET
+      path: /transparenz                 # Beispiel-Pfad
+      valid_status_codes: [200, 304]
+      follow_redirects: true
+      fail_if_body_matches_regexp:
+        - "Maintenance"
+        - "Error 500"
+
+  # 3) WordPress-Shortcodes-API (WP REST) – Authentifizierung optional
+  http_wp_bridge:
+    prober: http
+    timeout: 6s
+    http:
+      method: GET
+      path: /wp-json/trueangels/v1/health
+      valid_status_codes: [200]
+      basic_auth:
+        username: "${WP_MONITOR_USER:-}"
+        password: "${WP_MONITOR_PASS:-}"
+      fail_if_not_ssl: true
+
+  # ==================== TCP MODULES ====================
+  # 4) PostgreSQL – prüft ob Port 5433 (oder 5432) offen + optional Banner
+  tcp_postgres:
+    prober: tcp
+    timeout: 3s
+    tcp:
+      preferred_ip_protocol: "ip4"
+      query_response:
+        - send: "\n"
+          expect: "^PostgreSQL"   # Erwartet PostgreSQL-Begrüßung
+
+  # 5) Redis – prüft ob Port 6379 offen
+  tcp_redis:
+    prober: tcp
+    timeout: 2s
+    tcp:
+      preferred_ip_protocol: "ip4"
+
+  # 6) Wasabi / S3-kompatibler Storage
+  tcp_wasabi:
+    prober: tcp
+    timeout: 4s
+    tcp:
+      preferred_ip_protocol: "ip4"
+      source_ip_address: "0.0.0.0"
+
+  # 7) Celery Broker (Redis) – gleicher Port wie Redis, aber eigener Check
+  tcp_celery_broker:
+    prober: tcp
+    timeout: 2s
+    tcp:
+      query_response:
+        - send: "PING\r\n"
+          expect: "PONG"
+
+  # ==================== ICMP MODULES ====================
+  # 8) Basis-Konnektivität (Ping) – für Server/Container
+  icmp_base:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: "ip4"
+      payload_size: 56
+
+  # 9) Externe Abhängigkeiten (z.B. Stripe API)
+  icmp_external:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: "ip4"
+      dont_fragment: true
+
+  # ==================== DNS MODULE (optional) ====================
+  dns_external:
+    prober: dns
+    timeout: 3s
+    dns:
+      query_name: "trueangels.org"
+      query_type: "A"
+      preferred_ip_protocol: "ip4"
+      validate_answer_rrs:
+        fail_if_matches_regexp:
+          - "0.0.0.0"

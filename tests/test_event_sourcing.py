@@ -192,6 +192,7 @@ def test_event_serialization_benchmark(benchmark):
 
 # ==================== Property-Based Tests ====================
 
+
 @given(
     amount=st.decimals(min_value=0.01, max_value=100000, places=2),
     sequence=st.integers(min_value=1, max_value=1000),

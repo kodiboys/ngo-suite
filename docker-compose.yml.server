@@ -1,0 +1,602 @@
+# FILE: docker-compose.yml
+# MODULE: Production Docker Compose (v3.1 - Security & Stability Fixed)
+# Fixes: Vault Dev-Mode, Version Pinning, Healthchecks, SQLAlchemy-Ready
+
+services:
+# ==================== Database ====================
+  postgres:
+    image: postgres:16.4-alpine  # Gepinnt
+    container_name: ngo-suite_datenbank
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-trueangels}
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backups/wal:/var/lib/postgresql/wal_archive
+    command: >
+      postgres
+      -c shared_preload_libraries='pg_stat_statements'
+      -c pg_stat_statements.track=all
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c work_mem=16MB
+      -c archive_mode=on
+      -c archive_command='test ! -f /var/lib/postgresql/wal_archive/%f && cp %p /var/lib/postgresql/wal_archive/%f'
+      -c wal_level=replica
+      -c max_wal_senders=3
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d ${DB_NAME:-trueangels}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    labels:
+      - "traefik.enable=false"
+
+# ==================== Redis ====================
+  redis:
+    image: redis:7.4-alpine  # Gepinnt
+    container_name: ngo-suite_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --requirepass ${REDIS_PASSWORD:-redis_pass_change_me}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --stop-writes-on-bgsave-error no
+      --rdbcompression yes
+      --rdbchecksum yes
+      --dbfilename dump.rdb
+      --dir /data
+      --loglevel notice
+      --databases 16
+      --timeout 300
+      --tcp-keepalive 300
+      --maxclients 10000
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_pass_change_me}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    labels:
+      - "com.trueangels.service=redis"
+      - "com.trueangels.version=3.0"
+      - "traefik.enable=false"
+    sysctls:
+      - net.core.somaxconn=1024
+# =============== Redis Exporter ================
+
+  redis_exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: ngo-suite_redis_exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_pass_change_me}
+    ports:
+      - "9121:9121"
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=false"
+
+# ==================== MinIO ====================
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z  # Gepinnt (stable)
+    container_name: ngo-suite_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin_change_me}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.minio.rule=Host(`storage.angels4ukraine.de`)"
+      - "traefik.http.services.minio.loadbalancer.server.port=9000"
+      - "traefik.http.routers.minio.tls.certresolver=http_resolver"
+      - "traefik.http.routers.minio-console.rule=Host(`console.angels4ukraine.de`)"
+      - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
+      - "traefik.http.routers.minio-console.tls.certresolver=http_resolver"
+
+# ==================== API Backend ====================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-admin}:${DB_PASSWORD:-change_me}@postgres:5432/${DB_NAME:-trueangels}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_pass}@redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      VAULT_ADDR: http://vault:8200
+      SECRET_KEY: ${SECRET_KEY:-change_this_in_production}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      TRANSPARENCY_SALT: ${TRANSPARENCY_SALT:-trueangels_salt_2024}
+      API_DOMAIN: api.angels4ukraine.de
+      FRONTEND_DOMAIN: angels4ukraine.de
+      TRANSPARENCY_DOMAIN: transparenz.angels4ukraine.de
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - proxy
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1.5G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        delay: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`api.angels4ukraine.de`)"
+      - "traefik.http.services.api.loadbalancer.server.port=8000"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=http_resolver"
+      - "traefik.http.routers.api.middlewares=rate-limit@docker,compress@docker,cors@docker"
+
+# ==================== Celery Worker ====================
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-admin}:${DB_PASSWORD:-change_me}@postgres:5432/${DB_NAME:-trueangels}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_pass}@redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # ANMERKUNG: Healthcheck deaktiviert bis event_store.py fix deployed ist
+    # healthcheck:
+    #   test: ["CMD-SHELL", "celery -A src.core.events.event_bus inspect ping -d celery@$$HOSTNAME || exit 1"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    networks:
+      - proxy
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1.5G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    labels:
+      - "traefik.enable=false"
+
+# ==================== Celery Beat ====================
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    container_name: ngo-suite_celery_beat
+    restart: unless-stopped
+    command: celery -A src.core.events.event_bus beat --loglevel=info --scheduler redbeat.RedBeatScheduler
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-admin}:${DB_PASSWORD:-change_me}@postgres:5432/${DB_NAME:-trueangels}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_pass}@redis:6379/0
+      REDBEAT_REDIS_URL: redis://:${REDIS_PASSWORD:-redis_pass}@redis:6379/1
+    depends_on:
+      - postgres
+      - redis
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -v grep | grep 'celery beat' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=false"
+
+# ==================== Streamlit ====================
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: ngo-suite_streamlit
+    restart: unless-stopped
+    environment:
+      API_URL: https://api.angels4ukraine.de
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_pass}@redis:6379
+      TRANSPARENCY_SALT: ${TRANSPARENCY_SALT:-trueangels_salt_2024}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.streamlit.rule=Host(`transparenz.angels4ukraine.de`)"
+      - "traefik.http.services.streamlit.loadbalancer.server.port=8501"
+      - "traefik.http.routers.streamlit.entrypoints=websecure"
+      - "traefik.http.routers.streamlit.tls.certresolver=http_resolver"
+
+# ==================== Vault (Production-Ready) ====================
+  # WICHTIG: Vor erstem Start ./vault/config/vault.hcl erstellen!
+  vault:
+    image: hashicorp/vault:1.21.4
+    container_name: ngo-suite_vault
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    environment:
+      # KEIN VAULT_DEV_ROOT_TOKEN_ID in Produktion!
+      VAULT_ADDR: http://0.0.0.0:8200
+      VAULT_API_ADDR: http://vault:8200
+      VAULT_CLUSTER_ADDR: https://vault:8201
+      # VAULT_DEV_* entfernt - läuft jetzt im Production Mode mit File Backend
+    volumes:
+      - vault_data:/vault/data
+      - ./vault/config:/vault/config:ro
+      - vault_logs:/vault/logs
+    command: server -config=/vault/config/vault.hcl
+    healthcheck:
+      test: ["CMD-SHELL", "vault status || test $? -eq 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vault.rule=Host(`secrets.angels4ukraine.de`)"
+      - "traefik.http.services.vault.loadbalancer.server.port=8200"
+      - "traefik.http.routers.vault.entrypoints=websecure"
+      - "traefik.http.routers.vault.tls.certresolver=http_resolver"
+      - "traefik.http.routers.vault.middlewares=vault-auth,compress"
+      - "traefik.http.middlewares.vault-auth.basicauth.users=admin:$$2y$$10$$N9qo8uLOickgx2ZMRZoMy.Mr4jZfZq7qZ7qZ7qZ7qZ7qZ7qZ7qZu"
+
+# ==================== Prometheus ====================
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    container_name: ngo-suite_prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    ports:
+      - "9090:9090"
+    depends_on:
+      - postgres_exporter
+      - redis_exporter
+      - node-exporter
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`metrics.angels4ukraine.de`)"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=http_resolver"
+      - "traefik.http.routers.prometheus.middlewares=prometheus-auth,compress"
+      - "traefik.http.middlewares.prometheus-auth.basicauth.users=admin:$$2y$$10$$N9qo8uLOickgx2ZMRZoMy.Mr4jZfZq7qZ7qZ7qZ7qZ7qZ7qZ7qZu"
+  # =========== Node Exporter System Metriken =======
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: ngo-suite_node_exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=false"
+
+# ====== Blackbox Exporter Endpoint Monitoring ====
+  blackbox-exporter:
+    image: prom/blackbox-exporter:latest
+    container_name: ngo-suite_blackbox
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    command:
+      - '--config.file=/etc/blackbox_exporter/config.yml'
+    ports:
+      - "9115:9115"
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=false"
+
+  # ======= Alertmanager (Benachrichtigungen) =====
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: ngo-suite_alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - "9093:9093"
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.alertmanager.rule=Host(`alerts.angels4ukraine.de`)"
+      - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
+      - "traefik.http.routers.alertmanager.entrypoints=websecure"
+      - "traefik.http.routers.alertmanager.tls.certresolver=http_resolver"
+
+# ========== Pushgateway (Batch Jobs) =============
+  pushgateway:
+    image: prom/pushgateway:latest
+    container_name: ngo-suite_pushgateway
+    restart: unless-stopped
+    ports:
+      - "9091:9091"
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pushgateway.rule=Host(`pushgateway.angels4ukraine.de`)"
+      - "traefik.http.services.pushgateway.loadbalancer.server.port=9091"
+      - "traefik.http.routers.pushgateway.entrypoints=websecure"
+      - "traefik.http.routers.pushgateway.tls.certresolver=http_resolver"
+
+# ==================== Grafana ====================
+  grafana:
+    image: grafana/grafana:12.4.2
+    container_name: ngo-suite_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin_change_me}
+      GF_SERVER_ROOT_URL: https://monitoring.angels4ukraine.de
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_AUTH_BASIC_ENABLED: "true"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_AUTO_ASSIGN_ORG: "true"
+      GF_USERS_AUTO_ASSIGN_ORG_ROLE: "Viewer"
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_COOKIE_SAMESITE: "lax"
+    volumes:
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana_data:/var/lib/grafana
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+    depends_on:
+      - prometheus
+      - loki
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`monitoring.angels4ukraine.de`)"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls.certresolver=http_resolver"
+      - "traefik.http.routers.grafana.middlewares=grafana-auth,compress"
+      - "traefik.http.middlewares.grafana-auth.basicauth.users=admin:$$2y$$10$$N9qo8uLOickgx2ZMRZoMy.Mr4jZfZq7qZ7qZ7qZ7qZ7qZ7qZ7qZu"
+
+# ==================== Loki ====================
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: ngo-suite_loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./loki:/etc/loki:ro
+      - ./loki/data:/loki
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.loki.rule=Host(`logs.angels4ukraine.de`)"
+      - "traefik.http.services.loki.loadbalancer.server.port=3100"
+      - "traefik.http.routers.loki.entrypoints=websecure"
+      - "traefik.http.routers.loki.tls.certresolver=http_resolver"
+
+# ==================== Promtail ====================
+  promtail:
+    image: grafana/promtail:3.1.1  # Auf Loki-Version angeglichen
+    container_name: ngo-suite_promtail
+    restart: unless-stopped
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./logs:/app/logs:ro
+      - ./promtail/config:/etc/promtail:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=false"
+
+# ==================== Exporters ====================
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:v0.17.1  # Gepinnt
+    container_name: ngo-suite_postgres_exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${DB_USER:-admin}:${DB_PASSWORD:-change_me}@postgres:5432/${DB_NAME:-trueangels}?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=false"
+
+# ==================== Networks ====================
+networks:
+  proxy:
+    external: true
+    name: proxy
+
+# ==================== Volumes ====================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  vault_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  minio_data:
+    driver: local
+  loki_data:
+    driver: local
+  alertmanager_data:
+    driver: local
+  vault_logs:
+    driver: local

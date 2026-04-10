@@ -1,0 +1,146 @@
+# FILE: prometheus/postgres_exporter.yml
+# MODULE: PostgreSQL Exporter – TrueAngels NGO ENTERPRISE v1.0
+# Zweck: Sammelt PostgreSQL-Metriken für Prometheus, inkl. NGO-spezifischer KPIs
+# Verwendung: Wird vom postgres-exporter Container geladen (z.B. via Docker Volume)
+
+# ==================== GLOBALE EINSTELLUNGEN ====================
+global:
+  disable_default_metrics: false      # Standard-PG-Metriken behalten
+  collect_database: true
+  collect_database_size: true
+  collect_table_stats: true
+  collect_index_stats: true
+  collect_connection_stats: true
+  collect_transaction_stats: true
+  collect_lock_stats: true
+  collect_replication_stats: true
+  collect_wal_stats: true
+
+# ==================== AUTHENTIFIZIERUNG (Metrics-Endpoint) ====================
+# Deaktiviert – kein Basic Auth für Prometheus Scrape (ansonsten via env aktivieren)
+auth:
+  disable_auth: true
+
+# ==================== DATENBANK-VERBINDUNG ====================
+connections:
+  - name: "trueangels"
+    host: "postgres"                    # Service-Name in Docker-Compose
+    port: 5432
+    user: "${DB_USER:?Missing DB_USER}"
+    password: "${DB_PASSWORD:?Missing DB_PASSWORD}"
+    database: "${DB_NAME:-trueangels}"
+    sslmode: "require"                  # In Produktion verschlüsselt
+    sslrootcert: "/etc/ssl/certs/ca-certificates.crt"
+
+# ==================== FILTERUNG (welche Datenbanken) ====================
+database_filter:
+  include_databases:
+    - "trueangels"
+    - "postgres"
+  exclude_databases:
+    - "template0"
+    - "template1"
+
+# ==================== CUSTOM QUERIES (TrueAngels NGO) ====================
+custom_queries:
+  # 1) Spendenstatistik (kumulativ – Zeitfilterung via Prometheus)
+  - name: "trueangels_donation_stats"
+    query: |
+      SELECT
+        COUNT(*) as total_donations,
+        COALESCE(SUM(amount), 0) as total_amount,
+        COUNT(DISTINCT donor_email_pseudonym) as unique_donors,
+        COUNT(CASE WHEN payment_status = 'succeeded' THEN 1 END) as successful_donations,
+        COUNT(CASE WHEN payment_status = 'failed' THEN 1 END) as failed_donations,
+        COUNT(CASE WHEN payment_status = 'pending' THEN 1 END) as pending_donations
+      FROM donations
+    metrics:
+      - total_donations:      {usage: "GAUGE", description: "Alle Spenden (gesamt)"}
+      - total_amount:         {usage: "GAUGE", description: "Gesamtspendenbetrag"}
+      - unique_donors:        {usage: "GAUGE", description: "Eindeutige Spender (pseudonym)"}
+      - successful_donations: {usage: "GAUGE", description: "Erfolgreiche Zahlungen"}
+      - failed_donations:     {usage: "GAUGE", description: "Fehlgeschlagene Zahlungen"}
+      - pending_donations:    {usage: "GAUGE", description: "Ausstehende Zahlungen"}
+
+  # 2) Projektfortschritt in Prozent (je Projekt)
+  - name: "trueangels_project_funding"
+    query: |
+      SELECT
+        p.name AS project_name,
+        p.status AS project_status,
+        COALESCE(SUM(d.amount), 0) AS raised_amount,
+        p.budget_total,
+        CASE 
+          WHEN p.budget_total > 0 
+          THEN ROUND(COALESCE(SUM(d.amount), 0) * 100.0 / p.budget_total, 2)
+          ELSE 0
+        END AS funding_percentage
+      FROM projects p
+      LEFT JOIN donations d ON p.id = d.project_id AND d.payment_status = 'succeeded'
+      GROUP BY p.id, p.name, p.status, p.budget_total
+    metrics:
+      - project_name:         {usage: "LABEL", description: "Projektname"}
+      - project_status:       {usage: "LABEL", description: "Status (active/completed/planned)"}
+      - raised_amount:        {usage: "GAUGE", description: "Bisher gespendeter Betrag"}
+      - budget_total:         {usage: "GAUGE", description: "Gesamtbudget"}
+      - funding_percentage:   {usage: "GAUGE", description: "Finanzierungsgrad in Prozent"}
+
+  # 3) Merkle-Tree-Integrität (Audit-Log)
+  - name: "trueangels_merkle_integrity"
+    query: |
+      SELECT
+        EXTRACT(EPOCH FROM MAX(created_at)) AS last_audit_timestamp,
+        COUNT(CASE WHEN is_valid = false THEN 1 END) AS invalid_blocks
+      FROM audit.merkle_tree
+      WHERE created_at > NOW() - INTERVAL '30 days'
+    metrics:
+      - last_audit_timestamp: {usage: "GAUGE", description: "Unix-Timestamp des letzten Merkle-Audits"}
+      - invalid_blocks:       {usage: "GAUGE", description: "Anzahl ungültiger Blöcke in letzten 30 Tagen"}
+
+  # 4) Row-Level-Security (RLS) – Ist RLS auf kritischen Tabellen aktiv?
+  - name: "trueangels_rls_status"
+    query: |
+      SELECT
+        tablename,
+        CASE WHEN relrowsecurity THEN 1 ELSE 0 END AS rls_enabled
+      FROM pg_tables t
+      JOIN pg_class c ON t.tablename = c.relname
+      WHERE schemaname = 'public'
+        AND tablename IN ('donations', 'projects', 'donors', 'audit_log')
+    metrics:
+      - tablename:   {usage: "LABEL", description: "Tabellenname"}
+      - rls_enabled: {usage: "GAUGE", description: "1 falls RLS aktiviert"}
+
+  # 5) Aktive Datenbanksitzungen mit Query-Dauer
+  - name: "trueangels_active_sessions"
+    query: |
+      SELECT
+        state,
+        COUNT(*) AS count,
+        COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (NOW() - query_start)))::numeric, 2), 0) AS avg_query_duration_seconds
+      FROM pg_stat_activity
+      WHERE datname = 'trueangels'
+        AND state != 'idle'
+      GROUP BY state
+    metrics:
+      - state:                     {usage: "LABEL", description: "Zustand der Sitzung"}
+      - count:                     {usage: "GAUGE", description: "Anzahl Sitzungen"}
+      - avg_query_duration_seconds: {usage: "GAUGE", description: "Durchschnittliche Query-Dauer"}
+
+# ==================== PERFORMANCE & TIMEOUTS ====================
+performance:
+  query_timeout: 9           # Sekunden (muss < scrape_timeout sein)
+  max_connections: 5
+  scrape_timeout: 10
+
+# ==================== LOGGING (Produktion) ====================
+logging:
+  level: "warn"              # info ist zu laut
+  format: "json"
+  output: "stdout"
+
+# ==================== WEB SERVER ====================
+web:
+  listen_address: ":9187"
+  telemetry_path: "/metrics"
+  enable_pprof: false

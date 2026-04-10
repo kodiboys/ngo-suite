@@ -170,9 +170,7 @@ class SocialMediaService:
 
             try:
                 # Stelle sicher, dass Token gültig ist
-                if account.token_expires_at and account.token_expires_at <= datetime.now(
-                    UTC
-                ):
+                if account.token_expires_at and account.token_expires_at <= datetime.now(UTC):
                     account = await provider.refresh_token(account)
                     await self._update_account(session, account)
 

@@ -1,0 +1,42 @@
+# FILE: Dockerfile.celery-worker
+# Version: 3.0.2
+
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && update-ca-certificates
+
+RUN groupadd -r trueangels --gid=1000 \
+    && useradd -r -g trueangels --uid=1000 -m -s /bin/bash trueangels
+
+WORKDIR /app
+
+# WICHTIG: pyproject.toml zuerst kopieren
+COPY pyproject.toml poetry.lock* ./
+
+RUN pip install --no-cache-dir poetry==2.1.2
+
+# WICHTIG: pyproject.toml zuerst kopieren
+#COPY pyproject.toml poetry.lock* ./
+
+RUN poetry config virtualenvs.create false \
+    && poetry install --only main --no-interaction --no-ansi
+
+COPY --chown=trueangels:trueangels src/ ./src/
+COPY --chown=trueangels:trueangels scripts/ ./scripts/
+
+RUN chown trueangels:trueangels pyproject.toml poetry.lock* 2>/dev/null || true
+
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    TZ=Europe/Berlin
+
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+USER trueangels
+
+CMD ["celery", "-A", "src.core.events.event_bus", "worker", "--loglevel=info"]

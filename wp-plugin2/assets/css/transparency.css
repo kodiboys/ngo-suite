@@ -1,0 +1,490 @@
+/* assets/css/transparency.css */
+
+/* DSGVO-konforme Transparenz-Widgets */
+.ta-transparency-widget {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    margin: 2rem 0;
+    position: relative;
+}
+
+/* Loading Spinner */
+.ta-spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #10b981;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: ta-spin 1s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+@keyframes ta-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.ta-loading {
+    text-align: center;
+    padding: 3rem;
+    color: #6b7280;
+}
+
+/* Donations Stream */
+.ta-donations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem;
+}
+
+.ta-donation-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 1px solid #e5e7eb;
+}
+
+.ta-donation-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+}
+
+.ta-donation-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #10b981, #059669);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
+.ta-donation-icon i {
+    color: white;
+    font-size: 1.5rem;
+}
+
+.ta-donor-name {
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+}
+
+.ta-donation-amount {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #10b981;
+    margin: 0.5rem 0;
+}
+
+.ta-donation-project {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin: 0.25rem 0;
+}
+
+.ta-donation-date {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    margin-top: 0.5rem;
+}
+
+.ta-donation-message {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: #f9fafb;
+    border-radius: 8px;
+    font-style: italic;
+    color: #4b5563;
+}
+
+/* Statistics Cards */
+.ta-stream-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.ta-stat-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.ta-stat-label {
+    display: block;
+    font-size: 0.875rem;
+    opacity: 0.9;
+    margin-bottom: 0.5rem;
+}
+
+.ta-stat-value {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+/* Project Progress Ring */
+.ta-progress-ring {
+    position: relative;
+    display: inline-block;
+    text-align: center;
+}
+
+.ta-progress-percentage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2rem;
+    font-weight: 700;
+    color: #10b981;
+}
+
+/* Progress Bar */
+.ta-progress-bar-container {
+    background: #f3f4f6;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.ta-progress-bar {
+    background: #e5e7eb;
+    border-radius: 999px;
+    height: 1rem;
+    overflow: hidden;
+    margin: 0.5rem 0;
+}
+
+.ta-progress-fill {
+    background: linear-gradient(90deg, #10b981, #059669);
+    height: 100%;
+    transition: width 0.5s ease;
+    border-radius: 999px;
+}
+
+/* Financial Dashboard */
+.ta-finance-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.ta-finance-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border-left: 4px solid;
+}
+
+.ta-finance-card.income { border-left-color: #10b981; }
+.ta-finance-card.expenses { border-left-color: #ef4444; }
+.ta-finance-card.balance { border-left-color: #3b82f6; }
+.ta-finance-card.admin-cost { border-left-color: #f59e0b; }
+
+.ta-finance-card i {
+    font-size: 2rem;
+    color: #6b7280;
+}
+
+.ta-finance-info {
+    flex: 1;
+}
+
+.ta-label {
+    display: block;
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-bottom: 0.25rem;
+}
+
+.ta-value {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.ta-percent {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-left: 0.5rem;
+}
+
+/* Charts Container */
+.ta-finance-charts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.ta-chart-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.ta-chart-card h4 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: #1f2937;
+}
+
+/* SKR42 Tabelle */
+.ta-skr42-table {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    overflow-x: auto;
+}
+
+.ta-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.ta-table th {
+    text-align: left;
+    padding: 0.75rem;
+    background: #f9fafb;
+    font-weight: 600;
+    color: #1f2937;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.ta-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.ta-debit { color: #ef4444; }
+.ta-credit { color: #10b981; }
+.ta-balance.positive { color: #10b981; }
+.ta-balance.negative { color: #ef4444; }
+
+/* Timeline Layout */
+.ta-donations-timeline {
+    position: relative;
+    padding: 1rem 0;
+}
+
+.ta-timeline-item {
+    display: flex;
+    margin-bottom: 1.5rem;
+    position: relative;
+}
+
+.ta-timeline-badge {
+    width: 40px;
+    height: 40px;
+    background: #10b981;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    z-index: 1;
+}
+
+.ta-timeline-badge i {
+    color: white;
+}
+
+.ta-timeline-content {
+    flex: 1;
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.ta-timeline-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+}
+
+.ta-timeline-name {
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.ta-timeline-date {
+    font-size: 0.75rem;
+    color: #9ca3af;
+}
+
+.ta-timeline-amount {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #10b981;
+}
+
+/* Tax Donations (User-specific) */
+.ta-tax-container {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+}
+
+.ta-tax-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.ta-download-pdf {
+    background: #10b981;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.ta-download-pdf:hover {
+    background: #059669;
+}
+
+.ta-tax-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.ta-tax-card {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.ta-tax-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.ta-tax-table th {
+    text-align: left;
+    padding: 0.75rem;
+    background: #f9fafb;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.ta-tax-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+/* Impact Metrics */
+.ta-impact-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+}
+
+.ta-metric-card {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    padding: 2rem;
+    border-radius: 12px;
+    text-align: center;
+    transition: transform 0.2s;
+}
+
+.ta-metric-card:hover {
+    transform: translateY(-5px);
+}
+
+.ta-metric-icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+}
+
+.ta-metric-value {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.ta-metric-label {
+    font-size: 0.875rem;
+    opacity: 0.9;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .ta-donations-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .ta-finance-stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .ta-finance-charts {
+        grid-template-columns: 1fr;
+    }
+    
+    .ta-tax-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .ta-table {
+        font-size: 0.875rem;
+    }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .ta-donation-card,
+    .ta-finance-card,
+    .ta-chart-card,
+    .ta-skr42-table,
+    .ta-tax-container {
+        background: #1f2937;
+        color: #f3f4f6;
+    }
+    
+    .ta-donor-name,
+    .ta-value,
+    .ta-chart-card h4 {
+        color: #f3f4f6;
+    }
+    
+    .ta-donation-message {
+        background: #374151;
+        color: #d1d5db;
+    }
+    
+    .ta-table th {
+        background: #374151;
+        color: #f3f4f6;
+    }
+    
+    .ta-table td {
+        border-bottom-color: #374151;
+    }
+}

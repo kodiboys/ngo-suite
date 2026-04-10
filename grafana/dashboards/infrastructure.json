@@ -1,0 +1,108 @@
+# FILE: grafana/dashboards/infrastructure.json
+# MODULE: Infrastructure (Docker, PostgreSQL, Redis) Dashboard
+{
+  "dashboard": {
+    "title": "Infrastructure Monitoring",
+    "uid": "infrastructure-monitoring",
+    "version": 1,
+    "timezone": "browser",
+    "editable": true,
+    "refresh": "30s",
+    "tags": ["infrastructure", "docker", "database"],
+    "panels": [
+      {
+        "title": "Container Status",
+        "type": "table",
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "container_last_seen",
+            "legendFormat": "{{name}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "title": "PostgreSQL Connections",
+        "type": "graph",
+        "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "pg_stat_database_numbackends{datname=\"trueangels\"}",
+            "legendFormat": "Active connections",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "title": "Redis Memory Usage",
+        "type": "gauge",
+        "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "(redis_memory_used_bytes / redis_memory_max_bytes) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 70, "color": "yellow"},
+                {"value": 85, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Disk Usage",
+        "type": "gauge",
+        "gridPos": {"h": 6, "w": 6, "x": 0, "y": 6},
+        "targets": [
+          {
+            "expr": "(node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"}) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 20, "color": "yellow"},
+                {"value": 10, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "title": "Network Traffic",
+        "type": "graph",
+        "gridPos": {"h": 6, "w": 18, "x": 6, "y": 6},
+        "targets": [
+          {
+            "expr": "rate(container_network_receive_bytes_total[5m])",
+            "legendFormat": "Receive - {{container}}",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(container_network_transmit_bytes_total[5m])",
+            "legendFormat": "Transmit - {{container}}",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bps"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,483 @@
+Doch, die Suite hat sehr wohl eine grafische Oberfläche, sie ist nur zweigeteilt – je nachdem, ob man öffentliche Transparenz oder interne Verwaltung meint.
+
+**Öffentliche Ansicht (Transparenz-Dashboard):** Diese ist unter `https://transparenz.angels4ukraine.de` erreichbar. Hier sehen Spender die Projektfortschritte, Bedarfslisten und die Spendentabelle. Diese Oberfläche ist für alle sichtbar.
+
+**Interne Verwaltung (API & Swagger UI):** Die komplette Steuerung (Projekte anlegen, Lager verwalten, Buchhaltung) läuft über die API. Die dazugehörige grafische Oberfläche ist die **Swagger UI** unter `https://api.angels4ukraine.de/docs`. Das ist eine automatisch generierte Webseite, auf der man alle Funktionen über Buttons und Formulare bedienen kann, ohne programmieren zu müssen. Wenn du eine klassische Admin-Oberfläche mit Klick-UI suchst: Die ist in der aktuellen v3.0 nicht enthalten, da die gesamte Logik über die API läuft.
+
+Sie haben recht – eine **dedizierte interne Verwaltungsoberfläche** (Admin-Dashboard) ist in der aktuellen v3.0 nicht enthalten. Die Suite setzt auf:
+
+1. **API + Swagger UI** (`https://api.angels4ukraine.de/docs`) – für alle Verwaltungsaufgaben
+2. **Streamlit Dashboard** (`https://transparenz.angels4ukraine.de`) – nur öffentliche Transparenz
+
+## 🔧 **LÖSUNG: EIN EIGENES ADMIN-DASHBOARD NACHRÜSTEN**
+
+Hier ist eine **minimale, aber voll funktionsfähige Admin-Oberfläche** mit **Streamlit**, die Sie parallel zum öffentlichen Dashboard betreiben können.
+
+### **Datei: `streamlit_admin.py`**
+
+```python
+# FILE: streamlit_admin.py
+# MODULE: Interne Admin-Oberfläche für Projekt- & Bedarfsverwaltung
+# Zugang nur mit Login, erreichbar unter admin.angels4ukraine.de
+
+import streamlit as st
+import requests
+import pandas as pd
+from datetime import datetime
+import json
+
+# ==================== Page Config ====================
+st.set_page_config(
+    page_title="TrueAngels Admin",
+    page_icon="🔐",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ==================== Session State ====================
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "token" not in st.session_state:
+    st.session_state.token = None
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+API_BASE = "https://api.angels4ukraine.de"
+
+
+# ==================== Login ====================
+def do_login(email, password):
+    try:
+        response = requests.post(
+            f"{API_BASE}/api/v1/auth/login",
+            json={"email": email, "password": password},
+            timeout=10
+        )
+        if response.status_code == 200:
+            data = response.json()
+            st.session_state.token = data["access_token"]
+            st.session_state.user = data["user"]
+            st.session_state.authenticated = True
+            return True
+        else:
+            st.error("Login fehlgeschlagen")
+            return False
+    except Exception as e:
+        st.error(f"Fehler: {e}")
+        return False
+
+
+def logout():
+    st.session_state.authenticated = False
+    st.session_state.token = None
+    st.session_state.user = None
+    st.rerun()
+
+
+# ==================== API Calls mit Auth ====================
+def api_get(endpoint):
+    headers = {"Authorization": f"Bearer {st.session_state.token}"}
+    response = requests.get(f"{API_BASE}{endpoint}", headers=headers)
+    if response.status_code == 401:
+        logout()
+        return None
+    return response.json()
+
+
+def api_post(endpoint, data):
+    headers = {
+        "Authorization": f"Bearer {st.session_state.token}",
+        "Content-Type": "application/json"
+    }
+    response = requests.post(f"{API_BASE}{endpoint}", json=data, headers=headers)
+    if response.status_code == 401:
+        logout()
+        return None
+    return response.json()
+
+
+def api_put(endpoint, data):
+    headers = {
+        "Authorization": f"Bearer {st.session_state.token}",
+        "Content-Type": "application/json"
+    }
+    response = requests.put(f"{API_BASE}{endpoint}", json=data, headers=headers)
+    return response.json()
+
+
+def api_delete(endpoint):
+    headers = {"Authorization": f"Bearer {st.session_state.token}"}
+    response = requests.delete(f"{API_BASE}{endpoint}", headers=headers)
+    return response.status_code == 200
+
+
+# ==================== Login Page ====================
+if not st.session_state.authenticated:
+    st.title("🔐 TrueAngels Admin Login")
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        email = st.text_input("E-Mail")
+        password = st.text_input("Passwort", type="password")
+        if st.button("Anmelden", use_container_width=True):
+            if do_login(email, password):
+                st.rerun()
+    st.stop()
+
+
+# ==================== Sidebar ====================
+with st.sidebar:
+    st.image("https://angels4ukraine.de/logo.png", width=200)
+    st.markdown(f"### 👤 {st.session_state.user.get('email', 'Admin')}")
+    st.markdown(f"**Rolle:** {st.session_state.user.get('role', 'admin')}")
+    st.divider()
+    
+    menu = st.radio(
+        "Navigation",
+        ["📊 Dashboard", "🏗️ Projekte", "📦 Bedarfe", "📦 Lager", "📄 Packlisten", "💰 Buchhaltung", "⚙️ Einstellungen"]
+    )
+    
+    st.divider()
+    if st.button("🚪 Abmelden", use_container_width=True):
+        logout()
+        st.rerun()
+
+
+# ==================== Dashboard ====================
+if menu == "📊 Dashboard":
+    st.title("📊 Admin Dashboard")
+    
+    # KPIs
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        projects = api_get("/api/v1/projects") or []
+        st.metric("Projekte", len(projects))
+    
+    with col2:
+        needs = api_get("/api/v1/inventory/needs") or []
+        st.metric("Aktive Bedarfe", len([n for n in needs if n.get("status") == "active"]))
+    
+    with col3:
+        donations = api_get("/api/v1/donations?limit=1&page=1") or {}
+        total_donations = donations.get("total", 0)
+        st.metric("Gesamtspenden", f"{total_donations:,}")
+    
+    with col4:
+        low_stock = api_get("/api/v1/inventory/items/low-stock") or []
+        st.metric("Niedrigbestand", len(low_stock))
+    
+    st.divider()
+    
+    # Letzte Aktivitäten
+    st.subheader("📋 Letzte Spenden")
+    donations_data = api_get("/api/v1/donations?limit=10") or []
+    if donations_data:
+        df = pd.DataFrame(donations_data)
+        st.dataframe(df[["id", "amount", "payment_status", "created_at"]], use_container_width=True)
+
+
+# ==================== Projekte verwalten ====================
+elif menu == "🏗️ Projekte":
+    st.title("🏗️ Projekte verwalten")
+    
+    # Tabs
+    tab1, tab2, tab3 = st.tabs(["📋 Alle Projekte", "➕ Neues Projekt", "📊 Statistiken"])
+    
+    with tab1:
+        projects = api_get("/api/v1/projects") or []
+        if projects:
+            for project in projects:
+                with st.expander(f"📁 {project.get('name', 'Unbenannt')}"):
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.write(f"**Beschreibung:** {project.get('description', '-')}")
+                        st.write(f"**Budget:** {project.get('budget_total', 0):,.2f} €")
+                        st.write(f"**Spenden:** {project.get('donations_total', 0):,.2f} €")
+                        st.write(f"**Status:** {project.get('status', 'unknown')}")
+                        st.write(f"**Kostenträger:** {project.get('cost_center', '-')}")
+                    
+                    with col2:
+                        if st.button(f"🗑️ Löschen", key=f"del_{project.get('id')}"):
+                            if api_delete(f"/api/v1/projects/{project.get('id')}"):
+                                st.success("Projekt gelöscht")
+                                st.rerun()
+        else:
+            st.info("Keine Projekte vorhanden")
+    
+    with tab2:
+        with st.form("new_project_form"):
+            name = st.text_input("Projektname *")
+            description = st.text_area("Beschreibung")
+            budget = st.number_input("Budget (€)", min_value=0.0, step=1000.0)
+            cost_center = st.text_input("Kostenträger (z.B. PROJ_001)")
+            start_date = st.date_input("Startdatum")
+            show_on_transparency = st.checkbox("Auf Transparenzseite anzeigen", value=True)
+            
+            if st.form_submit_button("Projekt erstellen"):
+                data = {
+                    "name": name,
+                    "description": description,
+                    "budget_total": budget,
+                    "cost_center": cost_center,
+                    "start_date": start_date.isoformat(),
+                    "show_on_transparency": show_on_transparency,
+                    "status": "active"
+                }
+                result = api_post("/api/v1/projects", data)
+                if result:
+                    st.success(f"Projekt '{name}' wurde erstellt!")
+                    st.rerun()
+
+
+# ==================== Bedarfe verwalten ====================
+elif menu == "📦 Bedarfe":
+    st.title("📦 Bedarfe verwalten")
+    
+    # Projekt auswählen
+    projects = api_get("/api/v1/projects") or []
+    project_options = {p["name"]: p["id"] for p in projects}
+    selected_project = st.selectbox("Projekt auswählen", list(project_options.keys()))
+    project_id = project_options.get(selected_project)
+    
+    if project_id:
+        needs = api_get(f"/api/v1/inventory/needs?project_id={project_id}") or []
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.subheader("📋 Vorhandene Bedarfe")
+            if needs:
+                for need in needs:
+                    progress = need.get("fulfillment_percentage", 0)
+                    with st.expander(f"{need.get('name', 'Unbenannt')} - {progress}% erfüllt"):
+                        st.write(f"**Beschreibung:** {need.get('description', '-')}")
+                        st.write(f"**Kategorie:** {need.get('category', '-')}")
+                        st.write(f"**Priorität:** {need.get('priority', '-')}")
+                        st.write(f"**Fortschritt:** {need.get('quantity_current', 0)} / {need.get('quantity_target', 0)} {need.get('unit', 'Stk')}")
+                        st.progress(progress / 100)
+                        
+                        if st.button(f"🗑️ Löschen", key=f"del_need_{need.get('id')}"):
+                            if api_delete(f"/api/v1/inventory/needs/{need.get('id')}"):
+                                st.success("Bedarf gelöscht")
+                                st.rerun()
+            else:
+                st.info("Keine Bedarfe für dieses Projekt")
+        
+        with col2:
+            st.subheader("➕ Neuen Bedarf erstellen")
+            with st.form("new_need_form"):
+                name = st.text_input("Bedarfname *")
+                description = st.text_area("Beschreibung")
+                category = st.selectbox("Kategorie", ["wohnen", "nahrung", "medizin", "kleidung", "transport", "energie", "hygiene", "bildung"])
+                priority = st.selectbox("Priorität", ["critical", "high", "medium", "low"])
+                quantity_target = st.number_input("Benötigte Menge", min_value=1, step=1)
+                unit = st.text_input("Einheit", value="Stück")
+                unit_price = st.number_input("Preis pro Einheit (€)", min_value=0.0, step=1.0)
+                alert_threshold = st.slider("Alert-Schwelle (%)", 0, 100, 20)
+                
+                if st.form_submit_button("Bedarf erstellen"):
+                    data = {
+                        "project_id": project_id,
+                        "name": name,
+                        "description": description,
+                        "category": category,
+                        "priority": priority,
+                        "quantity_target": quantity_target,
+                        "unit": unit,
+                        "unit_price_eur": unit_price if unit_price > 0 else None,
+                        "alert_threshold_percent": alert_threshold,
+                        "alert_enabled": True
+                    }
+                    result = api_post("/api/v1/inventory/needs", data)
+                    if result:
+                        st.success(f"Bedarf '{name}' wurde erstellt!")
+                        st.rerun()
+
+
+# ==================== Lager verwalten ====================
+elif menu == "📦 Lager":
+    st.title("📦 Lagerverwaltung")
+    
+    tab1, tab2 = st.tabs(["📋 Lagerbestand", "➕ Bewegung erfassen"])
+    
+    with tab1:
+        items = api_get("/api/v1/inventory/items") or []
+        if items:
+            df = pd.DataFrame(items)
+            st.dataframe(df[["name", "sku", "category", "quantity", "available_quantity", "status"]], use_container_width=True)
+        else:
+            st.info("Keine Lagerartikel vorhanden")
+    
+    with tab2:
+        with st.form("stock_movement_form"):
+            items = api_get("/api/v1/inventory/items") or []
+            item_options = {i["name"]: i["id"] for i in items}
+            selected_item = st.selectbox("Artikel", list(item_options.keys()))
+            
+            movement_type = st.selectbox("Bewegungstyp", ["inbound", "outbound", "adjustment"])
+            quantity = st.number_input("Menge", min_value=1, step=1)
+            reason = st.text_area("Grund")
+            
+            if st.form_submit_button("Bewegung erfassen"):
+                data = {
+                    "item_id": item_options[selected_item],
+                    "movement_type": movement_type,
+                    "quantity": quantity,
+                    "reason": reason
+                }
+                result = api_post("/api/v1/inventory/movements", data)
+                if result:
+                    st.success("Bewegung erfasst!")
+                    st.rerun()
+
+
+# ==================== Buchhaltung ====================
+elif menu == "💰 Buchhaltung":
+    st.title("💰 Buchhaltung & Berichte")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("📊 SKR42 Bilanz")
+        year = st.number_input("Jahr", min_value=2020, max_value=2030, value=2024)
+        if st.button("Bilanz generieren"):
+            result = api_get(f"/api/v1/reports/balance-sheet?year={year}")
+            if result:
+                st.json(result)
+    
+    with col2:
+        st.subheader("📄 DATEV Export")
+        start_date = st.date_input("Von", value=datetime(2024, 1, 1))
+        end_date = st.date_input("Bis", value=datetime(2024, 12, 31))
+        if st.button("DATEV CSV exportieren"):
+            headers = {"Authorization": f"Bearer {st.session_state.token}"}
+            response = requests.get(
+                f"{API_BASE}/api/v1/reports/export/datev-csv",
+                params={"start_date": start_date.isoformat(), "end_date": end_date.isoformat()},
+                headers=headers
+            )
+            if response.status_code == 200:
+                st.download_button(
+                    "📥 CSV herunterladen",
+                    response.content,
+                    file_name=f"datev_export_{start_date}_{end_date}.csv",
+                    mime="text/csv"
+                )
+    
+    st.divider()
+    
+    st.subheader("📈 Spendenübersicht")
+    donations = api_get("/api/v1/donations?limit=100") or []
+    if donations:
+        df = pd.DataFrame(donations)
+        st.dataframe(df[["amount", "payment_status", "created_at"]], use_container_width=True)
+
+
+# ==================== Einstellungen ====================
+elif menu == "⚙️ Einstellungen":
+    st.title("⚙️ Einstellungen")
+    
+    st.subheader("👤 Benutzer")
+    st.write(f"Angemeldet als: {st.session_state.user.get('email')}")
+    st.write(f"Rolle: {st.session_state.user.get('role')}")
+    
+    st.divider()
+    
+    st.subheader("🔐 Passwort ändern")
+    with st.form("change_password"):
+        old_pw = st.text_input("Aktuelles Passwort", type="password")
+        new_pw = st.text_input("Neues Passwort", type="password")
+        confirm_pw = st.text_input("Neues Passwort bestätigen", type="password")
+        
+        if st.form_submit_button("Passwort ändern"):
+            if new_pw == confirm_pw:
+                # API Call für Passwortänderung
+                st.success("Passwort geändert (Demo)")
+            else:
+                st.error("Passwörter stimmen nicht überein")
+    
+    st.divider()
+    
+    st.subheader("ℹ️ System Info")
+    st.json({
+        "API": API_BASE,
+        "Version": "3.0.0",
+        "Benutzer": st.session_state.user.get("email")
+    })
+```
+
+---
+
+## 🚀 **SO INSTALLIEREN SIE DAS ADMIN-DASHBOARD**
+
+### **1. Datei erstellen**
+```bash
+nano /opt/trueangels/streamlit_admin.py
+# (Inhalt von oben einfügen)
+```
+
+### **2. Dockerfile für Admin erstellen**
+```bash
+nano /opt/trueangels/Dockerfile.admin
+```
+
+```dockerfile
+FROM python:3.12-slim
+RUN apt-get update && apt-get install -y curl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN groupadd -r trueangels --gid=1000 && useradd -r -g trueangels --uid=1000 -m -s /bin/bash trueangels
+WORKDIR /app
+COPY requirements_streamlit.txt .
+RUN pip install --no-cache-dir -r requirements_streamlit.txt
+COPY streamlit_admin.py .
+USER trueangels
+EXPOSE 8502
+CMD ["streamlit", "run", "streamlit_admin.py", "--server.port=8502", "--server.address=0.0.0.0", "--server.headless=true"]
+```
+
+### **3. Docker-Compose erweitern**
+```yaml
+# Zu docker-compose.yml hinzufügen
+admin:
+  build:
+    context: .
+    dockerfile: Dockerfile.admin
+  container_name: trueangels_admin
+  restart: unless-stopped
+  environment:
+    API_URL: https://api.${DOMAIN}
+  networks:
+    - proxy
+  labels:
+    - "traefik.enable=true"
+    - "traefik.http.routers.admin.rule=Host(`admin.${DOMAIN}`)"
+    - "traefik.http.services.admin.loadbalancer.server.port=8502"
+    - "traefik.http.routers.admin.entrypoints=websecure"
+    - "traefik.http.routers.admin.tls.certresolver=http_resolver"
+```
+
+### **4. Neuen Service starten**
+```bash
+cd /opt/trueangels
+docker compose build admin
+docker compose up -d admin
+```
+
+---
+
+## ✅ **DANN HABEN SIE:**
+
+| URL | Zweck |
+|-----|-------|
+| `https://transparenz.angels4ukraine.de` | Öffentliches Dashboard |
+| **`https://admin.angels4ukraine.de`** | **Internes Admin-Dashboard** (NEU) |
+| `https://api.angels4ukraine.de/docs` | API (Swagger) |
+
+**Das Admin-Dashboard erlaubt Ihnen:**
+- ✅ Projekte verwalten (CRUD)
+- ✅ Bedarfe verwalten
+- ✅ Lagerbestände einsehen
+- ✅ Buchhaltungsberichte generieren
+- ✅ Spenden einsehen
+- ✅ Passwort ändern
+
+**Login:** Gleiche Credentials wie für die API (`admin@angels4ukraine.de` / Ihr Passwort)

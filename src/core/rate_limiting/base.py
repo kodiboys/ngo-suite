@@ -5,7 +5,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import BaseModel, Field
 
@@ -171,7 +171,7 @@ class RateLimiterInterface:
 class CircuitBreakerInterface:
     """Interface für Circuit Breaker Implementierungen"""
 
-    async def call(self, func, *args, fallback: callable | None = None, **kwargs) -> Any:
+    async def call(self, func, *args, fallback: Callable | None = None, **kwargs) -> Any:
         """Führt Funktion mit Circuit Breaker Schutz aus"""
         raise NotImplementedError
 

@@ -18,6 +18,7 @@ router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
 
 # ==================== Public Endpoints ====================
 
+
 @router.post("/create-donation")
 async def create_donation(
     request: Request,
@@ -30,9 +31,7 @@ async def create_donation(
     Unterstützt Stripe, PayPal, Klarna
     """
     result = await payment_service.create_donation_with_payment(
-        request=payment_request,
-        user_id=current_user.id,
-        ip_address=request.client.host
+        request=payment_request, user_id=current_user.id, ip_address=request.client.host
     )
     return result
 
@@ -52,6 +51,7 @@ async def get_payment_status(
 
 # ==================== Webhook Endpoints (kein Auth) ====================
 
+
 @router.post("/webhook/stripe")
 async def stripe_webhook(
     request: Request,
@@ -67,10 +67,7 @@ async def stripe_webhook(
 
     # Async verarbeiten (nicht blockieren)
     background_tasks.add_task(
-        payment_service.handle_webhook,
-        PaymentProvider.STRIPE,
-        payload,
-        signature
+        payment_service.handle_webhook, PaymentProvider.STRIPE, payload, signature
     )
 
     return {"received": True}
@@ -89,10 +86,7 @@ async def paypal_webhook(
     signature = request.headers.get("paypal-transmission-sig")
 
     background_tasks.add_task(
-        payment_service.handle_webhook,
-        PaymentProvider.PAYPAL,
-        payload,
-        signature
+        payment_service.handle_webhook, PaymentProvider.PAYPAL, payload, signature
     )
 
     return {"received": True}
@@ -111,16 +105,14 @@ async def klarna_webhook(
     signature = request.headers.get("klarna-signature")
 
     background_tasks.add_task(
-        payment_service.handle_webhook,
-        PaymentProvider.KLARNA,
-        payload,
-        signature
+        payment_service.handle_webhook, PaymentProvider.KLARNA, payload, signature
     )
 
     return {"received": True}
 
 
 # ==================== Admin Endpoints ====================
+
 
 @router.post("/refund/{donation_id}")
 async def refund_donation(
@@ -134,10 +126,7 @@ async def refund_donation(
     Rückerstattung einer Spende (Admin only)
     """
     result = await payment_service.refund_donation(
-        donation_id=donation_id,
-        amount=amount,
-        reason=reason,
-        user_id=current_user.id
+        donation_id=donation_id, amount=amount, reason=reason, user_id=current_user.id
     )
     return result
 
