@@ -26,8 +26,8 @@ keywords = [
 
 [tool.poetry.dependencies]
 python = "^3.12"
-streamlit = "^1.37.0"
-streamlit-extras = "^0.4.0" # Nur hier!
+streamlit = "^1.56.0"
+streamlit-extras = "^1.4.1" # Nur hier!
 # ==================== Core Framework ====================
 fastapi = "^0.115.0"
 uvicorn = { extras = ["standard"], version = "^0.30.0" }
