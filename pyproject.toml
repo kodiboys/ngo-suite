@@ -29,13 +29,13 @@ python = "^3.12"
 streamlit = "^1.37.0"
 streamlit-extras = "^0.4.0" # Nur hier!
 # ==================== Core Framework ====================
-fastapi = "^0.115.0"
-uvicorn = { extras = ["standard"], version = "^0.30.0" }
-pydantic = { extras = ["email"], version = "^2.9.0" }
-python-multipart = "^0.0.9"
-python-jose = { extras = ["cryptography"], version = "^3.3.0" }
+fastapi = "^0.135.3"
+uvicorn = { extras = ["standard"], version = "^0.44.0" }
+pydantic = { extras = ["email"], version = "^2.12.5" }
+python-multipart = "^0.0.26"
+python-jose = { extras = ["cryptography"], version = "^3.5.0" }
 passlib = { extras = ["bcrypt"], version = "^1.7.4" }
-python-dotenv = "^1.0.0"
+python-dotenv = "^1.2.2"
 
 # ==================== Database & ORM ====================
 sqlalchemy = "^2.0.35"
